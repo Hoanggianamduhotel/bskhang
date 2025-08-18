@@ -1,0 +1,202 @@
+import { useEffect, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableCell,
+  TableBody,
+} from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabaseClient";
+
+interface RecordItem {
+  khambenh_id: string;
+  ten_benhnhan: string;
+  ngaytoa: string;
+  chan_doan: string;
+}
+
+interface ToaItem {
+  ten_thuoc: string;
+  so_luong: number;
+  dang_dung: string;
+}
+
+export default function ThongKe1Dialog({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [thuocName, setThuocName] = useState("");
+  const [data, setData] = useState<RecordItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [selectedVisit, setSelectedVisit] = useState<string | null>(null);
+  const [toaDetails, setToaDetails] = useState<ToaItem[]>([]);
+  const [visitInfo, setVisitInfo] = useState<{ ngaytoa: string; ten_benhnhan: string } | null>(null);
+
+  const handleSearch = async () => {
+    setLoading(true);
+    setErrorMsg("");
+    setData([]);
+    setSelectedVisit(null);
+    setToaDetails([]);
+
+    const { data: thuocData, error: thuocError } = await supabase
+      .from("thuoc")
+      .select("id")
+      .ilike("ten_thuoc", `%${thuocName}%`)
+      .limit(1);
+
+    if (thuocError || !thuocData || thuocData.length === 0) {
+      setErrorMsg("Không tìm thấy thuốc.");
+      setLoading(false);
+      return;
+    }
+
+    const thuocId = thuocData[0].id;
+
+    const { data: records, error: statError } = await supabase
+      .from("v_toaduocsi")
+      .select("khambenh_id, ten_benhnhan, ngaytoa, chan_doan")
+      .eq("thuoc_id", thuocId);
+
+    if (statError) {
+      setErrorMsg("Lỗi khi truy vấn dữ liệu.");
+      setLoading(false);
+      return;
+    }
+
+    setData(records || []);
+    setLoading(false);
+  };
+
+  const handleClickVisit = async (khambenh_id: string) => {
+    setSelectedVisit(khambenh_id);
+    setToaDetails([]);
+    setVisitInfo(null);
+
+    const { data: records, error } = await supabase
+      .from("v_toaduocsi")
+      .select("ten_thuoc, so_luong, dang_dung, ngaytoa, ten_benhnhan")
+      .eq("khambenh_id", khambenh_id);
+
+    if (error || !records || records.length === 0) {
+      setErrorMsg("Không lấy được chi tiết toa thuốc.");
+      return;
+    }
+
+    const { ngaytoa, ten_benhnhan } = records[0];
+    setVisitInfo({ ngaytoa, ten_benhnhan });
+
+    const mappedToa = records.map((item) => ({
+      ten_thuoc: item.ten_thuoc,
+      so_luong: item.so_luong,
+      dang_dung: item.dang_dung,
+    }));
+    setToaDetails(mappedToa);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Thống kê lịch sử theo tên thuốc</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex items-center gap-2">
+          <Input
+            placeholder="Nhập tên thuốc (ví dụ: Paracetamol)"
+            value={thuocName}
+            onChange={(e) => setThuocName(e.target.value)}
+            className="w-full"
+          />
+          <Button onClick={handleSearch} disabled={loading || !thuocName}>
+            {loading ? "Đang tìm..." : "Tra cứu"}
+          </Button>
+        </div>
+
+        {errorMsg && <p className="text-red-500 mt-2">{errorMsg}</p>}
+
+        {!selectedVisit && data.length > 0 && (
+          <div className="mt-4 max-h-96 overflow-y-auto border rounded-md">
+            <Table>
+              <TableHeader className="sticky top-0 bg-white dark:bg-gray-800 z-10">
+                <TableRow>
+                  <TableCell className="font-semibold w-12">STT</TableCell>
+                  <TableCell className="font-semibold w-24">Mã KB</TableCell>
+                  <TableCell className="font-semibold">Tên bệnh nhân</TableCell>
+                  <TableCell className="font-semibold">Chẩn đoán</TableCell>
+                  <TableCell className="font-semibold w-24">Ngày toa</TableCell>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.map((item, idx) => (
+                  <TableRow
+                    key={idx}
+                    className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                    onClick={() => handleClickVisit(item.khambenh_id)}
+                  >
+                    <TableCell className="text-center text-sm">{idx + 1}</TableCell>
+                    <TableCell className="font-mono text-xs">{item.khambenh_id.substring(0, 6)}...</TableCell>
+                    <TableCell>{item.ten_benhnhan}</TableCell>
+                    <TableCell className="text-sm">{item.chan_doan || "Chưa có"}</TableCell>
+                    <TableCell className="text-sm">{item.ngaytoa}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {selectedVisit && (
+          <div className="mt-4 border rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                Chi tiết khám bệnh: {selectedVisit}
+              </span>
+              <Button size="sm" variant="outline" onClick={() => setSelectedVisit(null)}>
+                ← Trở về danh sách
+              </Button>
+            </div>
+
+            {visitInfo && (
+              <div className="mb-2 text-sm text-gray-600 dark:text-gray-300">
+                <p><strong>Ngày khám:</strong> {visitInfo.ngaytoa}</p>
+                <p><strong>Tên bệnh nhân:</strong> {visitInfo.ten_benhnhan}</p>
+              </div>
+            )}
+
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableCell className="font-semibold">Tên thuốc</TableCell>
+                  <TableCell className="font-semibold">Số lượng</TableCell>
+                  <TableCell className="font-semibold">Dạng dùng</TableCell>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {toaDetails.map((thuoc, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{thuoc.ten_thuoc}</TableCell>
+                    <TableCell>{thuoc.so_luong}</TableCell>
+                    <TableCell>{thuoc.dang_dung}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

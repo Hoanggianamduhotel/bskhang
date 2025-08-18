@@ -1,0 +1,100 @@
+import React, { useState } from "react";
+import dayjs from "dayjs";
+
+const BexseroSchedule = () => {
+  const [birthDate, setBirthDate] = useState("");
+  const [dose, setDose] = useState("");
+  const [today] = useState(dayjs());
+  const [schedule, setSchedule] = useState<{ m1?: string; m2?: string; m3?: string }>({});
+
+  const handleSubmit = () => {
+    if (!birthDate || !dose) return;
+    const dob = dayjs(birthDate);
+    const ageInMonths = today.diff(dob, "month");
+
+    if (dose === "1") {
+      const m1 = today;
+      let m2: dayjs.Dayjs;
+      let m3: dayjs.Dayjs;
+
+      if (ageInMonths <= 6) {
+        m2 = m1.add(60, "day");
+        m3 = dob.add(12 * 30, "day");
+      } else if (ageInMonths <= 8) {
+        m2 = m1.add(60, "day");
+        m3 = dob.add(12 * 30, "day");
+      } else if (ageInMonths <= 12) {
+        m2 = m1.add(60, "day");
+        m3 = m2.add(60, "day");
+      } else if (ageInMonths <= 24) {
+        m2 = m1.add(60, "day");
+        m3 = m2.add(360, "day");
+      } else {
+        m2 = m1.add(30, "day");
+        m3 = undefined!;
+      }
+
+      setSchedule({
+        m1: m1.format("DD/MM/YYYY"),
+        m2: m2.format("DD/MM/YYYY"),
+        m3: m3 ? m3.format("DD/MM/YYYY") : "Không cần (trừ khi nguy cơ cao)",
+      });
+    }
+
+    if (dose === "2") {
+      const m1 = today;
+      const m3 = m1.add(60, "day");
+      setSchedule({
+        m1: "Đã tiêm trước",
+        m2: today.format("DD/MM/YYYY"),
+        m3: m3.format("DD/MM/YYYY"),
+      });
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto p-4 bg-white rounded-xl shadow-md space-y-4 border">
+      <h2 className="text-xl font-semibold">Tính lịch tiêm Bexsero</h2>
+
+      <label className="block">
+        Ngày sinh của trẻ:
+        <input
+          type="date"
+          className="mt-1 block w-full border rounded p-2"
+          value={birthDate}
+          onChange={(e) => setBirthDate(e.target.value)}
+        />
+      </label>
+
+      <label className="block">
+        Mũi đang tiêm là mũi số mấy?
+        <select
+          className="mt-1 block w-full border rounded p-2"
+          value={dose}
+          onChange={(e) => setDose(e.target.value)}
+        >
+          <option value="">-- Chọn --</option>
+          <option value="1">Mũi 1</option>
+          <option value="2">Mũi 2</option>
+        </select>
+      </label>
+
+      <button
+        onClick={handleSubmit}
+        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+      >
+        Tính lịch
+      </button>
+
+      {schedule.m2 && (
+        <div className="mt-4 space-y-1">
+          <p><strong>Mũi 1:</strong> {schedule.m1}</p>
+          <p><strong>Mũi 2:</strong> {schedule.m2}</p>
+          <p><strong>Mũi 3 (nhắc):</strong> {schedule.m3}</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default BexseroSchedule;

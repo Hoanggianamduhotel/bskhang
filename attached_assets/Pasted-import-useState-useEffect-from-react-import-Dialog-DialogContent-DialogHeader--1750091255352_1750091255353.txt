@@ -1,0 +1,207 @@
+import { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabaseClient";
+import { Textarea } from "@/components/ui/textarea";
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+}
+
+export default function DapUngDieuTriDialog({ open, onClose }: Props) {
+  const [searchName, setSearchName] = useState("");
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [selectedPatient, setSelectedPatient] = useState<any>(null);
+  const [ngayBatDau, setNgayBatDau] = useState("");
+  const [ngayTaiKham, setNgayTaiKham] = useState("");
+  const [dsToaThuoc, setDsToaThuoc] = useState<any[]>([]);
+  const [ketQua, setKetQua] = useState("");
+  const [phanUngPhu, setPhanUngPhu] = useState("");
+  const [currentPage, setCurrentPage] = useState(0);
+
+  // Fetch patient suggestions
+  useEffect(() => {
+    if (searchName.length < 2) return setSuggestions([]);
+    const fetchSug = async () => {
+      const { data, error } = await supabase
+        .from("benhnhan")
+        .select("id, ho_ten, thang_tuoi")
+        .ilike("ho_ten", `%${searchName}%`)
+        .limit(10);
+      if (error) console.error(error);
+      setSuggestions(data || []);
+    };
+    fetchSug();
+  }, [searchName]);
+
+  // Fetch prescriptions grouped by visit
+  useEffect(() => {
+    if (!selectedPatient || !ngayBatDau || !ngayTaiKham) {
+      setDsToaThuoc([]);
+      return;
+    }
+    const fetchData = async () => {
+      // 1. get visits
+      const { data: visits, error: vErr } = await supabase
+        .from("v_khambenh")
+        .select("khambenh_id")
+        .eq("benhnhan_id", selectedPatient.id)
+        .gte("ngay_kham", ngayBatDau)
+        .lte("ngay_kham", ngayTaiKham);
+      if (vErr) return console.error(vErr);
+      const ids = visits?.map((v) => v.khambenh_id) || [];
+      if (!ids.length) return setDsToaThuoc([]);
+
+      // 2. get detailed prescriptions including real toa_id
+      const { data: toas, error: tErr } = await supabase
+        .from("v_toaduocsi")
+        .select(
+          "id:toa_id, khambenh_id, ten_thuoc, don_vi, so_luong_moi_lan, so_lan_dung"
+        )
+        .in("khambenh_id", ids);
+      if (tErr) return console.error(tErr);
+      setDsToaThuoc(toas || []);
+    };
+    fetchData();
+  }, [selectedPatient, ngayBatDau, ngayTaiKham]);
+
+  // Save tracking
+  const handleLuu = async () => {
+    if (!selectedPatient || !ngayBatDau || !ngayTaiKham || !ketQua) return;
+    for (const toa of dsToaThuoc) {
+      const payload = {
+        benhnhan_id: selectedPatient.id,
+        khambenh_id: toa.khambenh_id,
+        toa_id: toa.toa_id,
+        thuoc: toa.ten_thuoc,
+        don_vi: toa.don_vi,
+        lieu_dung: toa.so_luong_moi_lan,
+        so_lan_dung: toa.so_lan_dung,
+        ngay_bat_dau: ngayBatDau,
+        ngay_tai_kham: ngayTaiKham,
+        ket_qua: ketQua,
+        phan_ung_phu: phanUngPhu,
+      };
+      console.log("Insert payload:", payload);
+      const { error } = await supabase
+        .from("theodoi_dapung_dieutri")
+        .insert(payload);
+      if (error) console.error("Insert error:", error.message, error.details);
+    }
+    onClose();
+  };
+
+  // Group by visit
+  const grouped = dsToaThuoc.reduce<Record<string, any[]>>((acc, toa) => {
+    acc[toa.khambenh_id] = acc[toa.khambenh_id] || [];
+    acc[toa.khambenh_id].push(toa);
+    return acc;
+  }, {});
+
+  const visitEntries = Object.entries(grouped);
+  const itemsPerPage = 2;
+  const totalPages = Math.ceil(visitEntries.length / itemsPerPage);
+  const currentVisits = visitEntries.slice(
+    currentPage * itemsPerPage,
+    (currentPage + 1) * itemsPerPage
+  );
+
+  const nextPage = () => setCurrentPage((p) => Math.min(p + 1, totalPages - 1));
+  const prevPage = () => setCurrentPage((p) => Math.max(p - 1, 0));
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Theo dõi đáp ứng điều trị</DialogTitle>
+        </DialogHeader>
+
+        {/* Search patient */}
+        <Input
+          placeholder="Nhập tên bệnh nhân..."
+          value={searchName}
+          onChange={(e) => setSearchName(e.target.value)}
+        />
+        {suggestions.map((sug) => (
+          <div
+            key={sug.id}
+            className="cursor-pointer px-2 py-1 hover:bg-gray-100 text-sm"
+            onClick={() => {
+              setSelectedPatient(sug);
+              setSuggestions([]);
+              setSearchName(sug.ho_ten);
+            }}
+          >
+            {sug.ho_ten} ({Math.floor(sug.thang_tuoi / 12)} tuổi)
+          </div>
+        ))}
+
+        {/* Pagination controls */}
+        {visitEntries.length > 0 && (
+          <div className="mt-4 flex justify-between items-center">
+            <h3 className="font-medium">Toa thuốc ({visitEntries.length} lần khám)</h3>
+            {totalPages > 1 && (
+              <div className="flex items-center space-x-2">
+                <Button variant="outline" size="sm" onClick={prevPage} disabled={currentPage === 0}>
+                  ‹
+                </Button>
+                <span className="text-sm">{currentPage + 1}/{totalPages}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={nextPage}
+                  disabled={currentPage === totalPages - 1}
+                >
+                  ›
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Display prescriptions */}
+        <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {currentVisits.map(([visit, toas]) => (
+            <div key={visit} className="p-4 border rounded-lg bg-gray-50">
+              <div className="font-semibold mb-2 text-sm">
+                Toa khám {visit.slice(0, 8)}…
+              </div>
+              <ul className="space-y-1 text-sm">
+                {toas.map((t, i) => (
+                  <li key={i} className="flex justify-between">
+                    <span>{t.ten_thuoc}</span>
+                    <span className="text-gray-600">
+                      {t.so_luong_moi_lan} {t.don_vi} × {t.so_lan_dung}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        {/* Date inputs & result */}
+        <div className="space-y-2 mt-4">
+          <Input type="date" value={ngayBatDau} onChange={(e) => setNgayBatDau(e.target.value)} />
+          <Input type="date" value={ngayTaiKham} onChange={(e) => setNgayTaiKham(e.target.value)} />
+          <Input placeholder="Kết quả điều trị" value={ketQua} onChange={(e) => setKetQua(e.target.value)} />
+          <Textarea placeholder="Phản ứng phụ" value={phanUngPhu} onChange={(e) => setPhanUngPhu(e.target.value)} />
+        </div>
+
+        {/* Save button */}
+        {visitEntries.length > 0 && (
+          <Button onClick={handleLuu} className="mt-4 w-full">
+            Lưu theo dõi
+          </Button>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

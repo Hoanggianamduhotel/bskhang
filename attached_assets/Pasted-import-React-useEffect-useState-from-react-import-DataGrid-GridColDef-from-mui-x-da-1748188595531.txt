@@ -1,0 +1,159 @@
+import React, { useEffect, useState } from "react";
+import { DataGrid, GridColDef } from "@mui/x-data-grid";
+import { supabase } from "./supabaseClient";
+
+interface VisitHistoryProps {
+  benhnhan_id: string;
+}
+
+interface Visit {
+  id: string;
+  ngay_kham: string;
+  chan_doan: string;
+  status?: string;
+}
+
+interface ToaThuocRaw {
+  id: string;
+  thuoc_id: string;
+  so_lan_dung: number;
+  so_luong_moi_lan: number;
+  tong_so_luong: number;
+}
+
+interface ToaThuoc extends ToaThuocRaw {
+  ten_thuoc: string;
+}
+
+const VisitHistory: React.FC<VisitHistoryProps> = ({ benhnhan_id }) => {
+  const [visits, setVisits] = useState<Visit[]>([]);
+  const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
+  const [toaThuoc, setToaThuoc] = useState<ToaThuoc[]>([]);
+
+  useEffect(() => {
+    const fetchVisitHistory = async () => {
+      const { data, error } = await supabase
+        .from("khambenh")
+        .select("id, ngay_kham, chan_doan, status")
+        .eq("benhnhan_id", benhnhan_id)
+        .order("ngay_kham", { ascending: false });
+
+      if (error) {
+        console.error("Lỗi lấy lịch sử khám:", error);
+      } else {
+        const validVisits = (data || []).filter(
+          (visit: Visit) =>
+            !visit.status || visit.status.trim().toLowerCase() !== "huỷ"
+        );
+        setVisits(validVisits);
+      }
+    };
+
+    if (benhnhan_id) {
+      fetchVisitHistory();
+      setSelectedVisitId(null);
+      setToaThuoc([]);
+    }
+  }, [benhnhan_id]);
+
+  const fetchToaThuoc = async (visitId: string) => {
+    const { data: toathuocData, error } = await supabase
+      .from("toathuoc")
+      .select("id, thuoc_id, so_lan_dung, so_luong_moi_lan, tong_so_luong")
+      .eq("khambenh_id", visitId);
+
+    if (error) {
+      console.error("Lỗi lấy toa thuốc:", error);
+      setToaThuoc([]);
+      return;
+    }
+
+    if (!toathuocData || toathuocData.length === 0) {
+      setToaThuoc([]);
+      return;
+    }
+
+    const thuocIds = toathuocData.map((item) => item.thuoc_id);
+
+    const { data: thuocData, error: thuocError } = await supabase
+      .from("thuoc")
+      .select("id, ten_thuoc")
+      .in("id", thuocIds);
+
+    if (thuocError) {
+      console.error("Lỗi lấy tên thuốc:", thuocError);
+      return;
+    }
+
+    const toaThuocWithName: ToaThuoc[] = toathuocData.map((item) => {
+      const thuoc = thuocData?.find((t) => t.id === item.thuoc_id);
+      return {
+        ...item,
+        ten_thuoc: thuoc?.ten_thuoc || "Không rõ",
+      };
+    });
+
+    setToaThuoc(toaThuocWithName);
+  };
+
+  useEffect(() => {
+    if (selectedVisitId) {
+      fetchToaThuoc(selectedVisitId);
+    }
+  }, [selectedVisitId]);
+
+  const visitColumns: GridColDef[] = [
+    {
+      field: "ngay_kham",
+      headerName: "Ngày khám",
+      flex: 1,
+    },
+    {
+      field: "chan_doan",
+      headerName: "Chẩn đoán",
+      flex: 2,
+    },
+  ];
+
+  const toaThuocColumns: GridColDef[] = [
+    { field: "ten_thuoc", headerName: "Tên thuốc", flex: 1 },
+    { field: "so_lan_dung", headerName: "Số lần dùng", flex: 1 },
+    { field: "so_luong_moi_lan", headerName: "Số lượng/lần", flex: 1 },
+    { field: "tong_so_luong", headerName: "Tổng số lượng", flex: 1 },
+  ];
+
+  return (
+    <div className="mt-4">
+      {visits.length > 0 && (
+        <>
+          <h2 className="text-xl font-semibold mb-2">📜 Lịch sử khám bệnh</h2>
+          <div style={{ height: 300, width: "100%" }}>
+            <DataGrid
+              rows={visits.map((v) => ({ id: v.id, ...v }))}
+              columns={visitColumns}
+              onRowClick={(params) => setSelectedVisitId(params.row.id)}
+              pageSize={5}
+              rowsPerPageOptions={[5]}
+            />
+          </div>
+        </>
+      )}
+
+      {selectedVisitId && (
+        <div className="mt-6">
+          <h2 className="text-xl font-semibold mb-2">📝 Toa thuốc</h2>
+          <div style={{ height: 300, width: "100%" }}>
+            <DataGrid
+              rows={toaThuoc.map((t) => ({ id: t.id, ...t }))}
+              columns={toaThuocColumns}
+              pageSize={5}
+              rowsPerPageOptions={[5]}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default VisitHistory;

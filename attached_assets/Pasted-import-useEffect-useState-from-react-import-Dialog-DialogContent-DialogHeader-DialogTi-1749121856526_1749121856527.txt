@@ -1,0 +1,100 @@
+import { useEffect, useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TableHeader, TableRow, TableCell, TableBody } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabaseClient";
+
+interface RecordItem {
+  khambenh_id: string;
+  ten_benhnhan: string;
+  ngaytoa: string;
+}
+
+export default function ThongKe1Dialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [thuocName, setThuocName] = useState("");
+  const [data, setData] = useState<RecordItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const handleSearch = async () => {
+    setLoading(true);
+    setErrorMsg("");
+    setData([]);
+
+    // 1. Tra thuốc_id từ bảng "thuoc"
+    const { data: thuocData, error: thuocError } = await supabase
+      .from("thuoc")
+      .select("id")
+      .ilike("ten_thuoc", `%${thuocName}%`)
+      .limit(1);
+
+    if (thuocError || !thuocData || thuocData.length === 0) {
+      setErrorMsg("Không tìm thấy thuốc.");
+      setLoading(false);
+      return;
+    }
+
+    const thuocId = thuocData[0].id;
+
+    // 2. Truy vấn thống kê từ view v_toaduocsi
+    const { data: records, error: statError } = await supabase
+      .from("v_toaduocsi")
+      .select("khambenh_id, ten_benhnhan, ngaytoa")
+      .eq("thuoc_id", thuocId);
+
+    if (statError) {
+      setErrorMsg("Lỗi khi truy vấn dữ liệu.");
+      setLoading(false);
+      return;
+    }
+
+    setData(records || []);
+    setLoading(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Thống kê lịch sử theo tên thuốc</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex items-center gap-2">
+          <Input
+            placeholder="Nhập tên thuốc (ví dụ: Paracetamol)"
+            value={thuocName}
+            onChange={(e) => setThuocName(e.target.value)}
+            className="w-full"
+          />
+          <Button onClick={handleSearch} disabled={loading || !thuocName}>
+            {loading ? "Đang tìm..." : "Tra cứu"}
+          </Button>
+        </div>
+
+        {errorMsg && <p className="text-red-500 mt-2">{errorMsg}</p>}
+
+        {data.length > 0 && (
+          <Table className="mt-4">
+            <TableHeader>
+              <TableRow>
+                <TableCell>Mã khám bệnh</TableCell>
+                <TableCell>Tên bệnh nhân</TableCell>
+                <TableCell>Ngày toa</TableCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.map((item, idx) => (
+                <TableRow key={idx}>
+                  <TableCell>{item.khambenh_id}</TableCell>
+                  <TableCell>{item.ten_benhnhan}</TableCell>
+                  <TableCell>{item.ngaytoa}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

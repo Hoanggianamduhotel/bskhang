@@ -1,0 +1,244 @@
+// kham-benh-doctor.tsx
+import React, { forwardRef, useState, useEffect, useImperativeHandle } from 'react';
+import { TextField, Button, Box } from '@mui/material';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/lib/supabaseClient';
+
+export interface KhamBenhDoctorRef {
+  focusTrieuChung: () => void;
+}
+
+interface KhamBenh {
+  benhnhan_id: string;
+  bacsi_id: string;
+  ngay_kham: string;
+  trieu_chung: string;
+  chan_doan: string;
+  so_ngay_toa: number;
+}
+
+interface Props {
+  khambenh: KhamBenh;
+  setKhambenh: React.Dispatch<React.SetStateAction<KhamBenh>>;
+  setKhambenhID: React.Dispatch<React.SetStateAction<string | null>>;
+  onSaveComplete?: () => void;
+}
+
+const KhamBenhDoctor = forwardRef<KhamBenhDoctorRef, Props>(({
+  khambenh,
+  setKhambenh,
+  setKhambenhID,
+  onSaveComplete
+}, ref) => {
+  const [trieuChung, setTrieuChung] = useState(khambenh.trieu_chung);
+  const [chanDoan, setChanDoan] = useState(khambenh.chan_doan);
+  const [soNgayToa, setSoNgayToa] = useState(khambenh.so_ngay_toa);
+  const { toast } = useToast();
+
+  // exposé focusTrieuChung
+  useImperativeHandle(ref, () => ({
+    focusTrieuChung: () => {
+      trieuChungRef.current?.focus();
+    }
+  }));
+  const trieuChungRef = React.createRef<HTMLInputElement>();
+
+  // sync props -> state
+  useEffect(() => {
+    setTrieuChung(khambenh.trieu_chung || '');
+    setChanDoan(khambenh.chan_doan || '');
+    setSoNgayToa(khambenh.so_ngay_toa || 0);
+  }, [khambenh.trieu_chung, khambenh.chan_doan, khambenh.so_ngay_toa]);
+
+  // reset listener
+  useEffect(() => {
+    const handleReset = () => {
+      console.log('🔄 Reset form khám bệnh về trống - FORCE RESET');
+      setTrieuChung('');
+      setChanDoan('');
+      setSoNgayToa(0);
+    };
+    window.addEventListener('resetToaThuoc', handleReset);
+    return () => window.removeEventListener('resetToaThuoc', handleReset);
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      const payload = { ...khambenh, trieu_chung: trieuChung, chan_doan: chanDoan, so_ngay_toa: soNgayToa };
+      const { data, error } = await supabase.from('khambenh').upsert(payload).select('id');
+      if (error) throw error;
+      const id = data?.[0]?.id;
+      setKhambenhID(id || null);
+      onSaveComplete?.();
+      toast({ title: 'Thành công', description: 'Lưu khám bệnh thành công' });
+    } catch (err: any) {
+      toast({ title: 'Lỗi', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  return (
+    <Box display="flex" flexDirection="column" gap={2}>
+      <TextField
+        label="Triệu chứng"
+        value={trieuChung}
+        onChange={e => setTrieuChung(e.target.value)}
+        inputRef={trieuChungRef}
+      />
+      <TextField
+        label="Chẩn đoán"
+        value={chanDoan}
+        onChange={e => setChanDoan(e.target.value)}
+      />
+      <TextField
+        label="Số ngày kê toa"
+        type="number"
+        inputProps={{ min: 0 }}
+        value={soNgayToa}
+        onChange={e => setSoNgayToa(Number(e.target.value))}
+      />
+      <Button variant="contained" onClick={handleSave}>Lưu khám bệnh</Button>
+    </Box>
+  );
+});
+
+export default KhamBenhDoctor;
+
+
+// toa-thuoc-doctor-mui.tsx
+import React, { useState, useEffect, forwardRef, useImperativeHandle, useRef } from 'react';
+import { Box, Button, Dialog, DialogTitle, DialogContent, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField } from '@mui/material';
+import { supabase } from '@/lib/supabaseClient';
+import { useToast } from '@/hooks/use-toast';
+import { Plus, Trash2, Search } from 'lucide-react';
+
+export interface ToaThuocDoctorRef {
+  focus: () => void;
+}
+
+interface ToaThuocRow {
+  id: number;
+  thuoc_id: string;
+  ten_thuoc: string;
+  don_vi: string;
+  duong_dung: string;
+  so_lan_dung: number;
+  so_luong_moi_lan: number;
+  tong_so_luong: number;
+  ghi_chu: string;
+  searchTerm: string;
+}
+
+interface Props {
+  khambenhID: string;
+}
+
+const ToaThuocDoctorMUI = forwardRef<ToaThuocDoctorRef, Props>(({ khambenhID }, ref) => {
+  const [list, setList] = useState<ToaThuocRow[]>([{ id: 0, thuoc_id: '', ten_thuoc: '', don_vi: '', duong_dung: '', so_lan_dung: 1, so_luong_moi_lan: 1, tong_so_luong: 1, ghi_chu: '', searchTerm: '' }]);
+  const [thuocList, setThuocList] = useState<any[]>([]);
+  const [currentRow, setCurrentRow] = useState<number | null>(null);
+  const [open, setOpen] = useState(false);
+  const { toast } = useToast();
+  const idCounter = useRef(1);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      setTimeout(() => {
+        const input = document.querySelector('input[data-field="search_thuoc"]') as HTMLInputElement;
+        input?.focus();
+      }, 100);
+    }
+  }));
+
+  // reset listener
+  useEffect(() => {
+    const handleReset = () => {
+      setList([{ id: 0, thuoc_id: '', ten_thuoc: '', don_vi: '', duong_dung: '', so_lan_dung: 1, so_luong_moi_lan: 1, tong_so_luong: 1, ghi_chu: '', searchTerm: '' }]);
+    };
+    window.addEventListener('resetToaThuoc', handleReset);
+    return () => window.removeEventListener('resetToaThuoc', handleReset);
+  }, []);
+
+  // fetch thuốc
+  useEffect(() => {
+    if (currentRow === null) return;
+    const term = list.find(r => r.id === currentRow)?.searchTerm;
+    if (!term) return;
+    const timer = setTimeout(async () => {
+      const { data } = await supabase.from('thuoc').select('*').ilike('ten_thuoc', `%${term}%`).limit(20);
+      setThuocList(data || []);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [list, currentRow]);
+
+  const handleSelectThuoc = (rowId: number, t: any) => {
+    setList(prev => prev.map(r => r.id === rowId ? { ...r, thuoc_id: t.id, ten_thuoc: t.ten_thuoc, don_vi: t.don_vi, duong_dung: t.duong_dung, searchTerm: '' } : r));
+    setOpen(false);
+  };
+
+  const handleSave = async () => {
+    const payload = list.filter(r => r.thuoc_id).map(r => ({ khambenh_id: khambenhID, thuoc_id: r.thuoc_id, so_lan_dung: r.so_lan_dung, so_luong_moi_lan: r.so_luong_moi_lan, tong_so_luong: r.tong_so_luong, ghi_chu: r.ghi_chu }));
+    if (!payload.length) return toast({ title: 'Lỗi', description: 'Chưa có thuốc', variant: 'destructive' });
+    const { error } = await supabase.from('toathuoc').insert(payload);
+    if (error) toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
+    else toast({ title: 'Thành công', description: 'Lưu toa thuốc thành công' });
+  };
+
+  return (
+    <Box>
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Tên thuốc</TableCell>
+              <TableCell>Đơn vị</TableCell>
+              <TableCell>Số lần/ngày</TableCell>
+              <TableCell>SL mỗi lần</TableCell>
+              <TableCell>Tổng SL</TableCell>
+              <TableCell>Ghi chú</TableCell>
+              <TableCell>Thao tác</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {list.map(row => (
+              <TableRow key={row.id}>
+                <TableCell>
+                  {row.ten_thuoc ? row.ten_thuoc : (
+                    <TextField
+                      placeholder="Gõ tên thuốc..."
+                      value={row.searchTerm}
+                      onChange={e => { setList(prev => prev.map(r => r.id===row.id?{...r, searchTerm:e.target.value}:r)); setCurrentRow(row.id); setOpen(true); }}
+                      InputProps={{ startAdornment: <Search /> }}
+                      inputProps={{ 'data-field': 'search_thuoc' }}
+                    />
+                  )}
+                </TableCell>
+                {/* ... các cột khác ... */}
+                <TableCell>
+                  <IconButton onClick={() => setList(prev => prev.filter(r=>r.id!==row.id))}><Trash2 /></IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Chọn thuốc</DialogTitle>
+        <DialogContent>
+          {thuocList.map(t => (
+            <Box key={t.id} onClick={() => handleSelectThuoc(currentRow!, t)} sx={{ p:1, cursor:'pointer', '&:hover':{bgcolor:'action.hover'} }}>
+              {t.ten_thuoc}
+            </Box>
+          ))}
+        </DialogContent>
+      </Dialog>
+
+      <Box mt={2} display="flex" gap={2}>
+        <Button variant="outlined" startIcon={<Plus />} onClick={() => setList(prev => [...prev, { ...prev[prev.length-1], id: idCounter.current++ }])}>Thêm dòng</Button>
+        <Button variant="contained" onClick={handleSave}>Lưu toa thuốc</Button>
+      </Box>
+    </Box>
+  );
+});
+
+export default ToaThuocDoctorMUI;

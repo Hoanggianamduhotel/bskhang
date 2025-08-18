@@ -1,0 +1,78 @@
+import { useState, useImperativeHandle, forwardRef } from "react";
+import { Button } from "@/components/ui/button";
+import { Printer, Eye } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabaseClient";
+
+interface InToaThuocProps { /* … */ }
+interface InToaThuocRef { handlePreview: () => void; handlePrint: () => void; }
+interface ToaThuocData { /* … */ }
+interface PatientInfoType { /* … */ }
+
+const InToaThuoc = forwardRef<InToaThuocRef, InToaThuocProps>(
+  ({ khambenhID, disabled = false, patientInfo }, ref) => {
+    const [loading, setLoading] = useState(false);
+    const [showPreview, setShowPreview] = useState(false);
+    const [toaThuocData, setToaThuocData] = useState<ToaThuocData|null>(null);
+    const { toast } = useToast();
+
+    // … các hàm fetchToaThuocData, handlePreview, handlePrint, generatePrintHTML …
+
+    useImperativeHandle(ref, () => ({ handlePreview, handlePrint }));
+
+    if (!khambenhID) return null;
+
+    return (
+      <div className="relative">
+        {/* ======= Phần hiển thị Preview (nếu có) ======= */}
+        <div className="space-y-4 pr-8">
+          {showPreview && toaThuocData && (
+            <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
+              {/* …nội dung xem trước… */}
+            </div>
+          )}
+        </div>
+
+        {/* ======= Phần wrapper chỉ bao quanh hai nút ======= */}
+        <div className="absolute right-0 bottom-0 flex flex-col space-y-2">
+          <button
+            onClick={handlePreview}
+            disabled={disabled}
+            className={`
+              transition-all duration-200 ease-in-out flex items-center justify-center
+              bg-green-500 hover:bg-green-600 active:bg-green-700
+              text-white text-sm font-medium
+              rounded-md
+              h-12 w-12
+              ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:scale-105"}
+            `}
+            style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+            title="Xem trước toa thuốc"
+          >
+            <Eye size={20} />
+          </button>
+
+          <button
+            onClick={handlePrint}
+            disabled={disabled}
+            className={`
+              transition-all duration-200 ease-in-out flex items-center justify-center
+              bg-blue-600 hover:bg-blue-700 active:bg-blue-800
+              text-white text-sm font-medium
+              rounded-md
+              h-12 w-12
+              ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:scale-105"}
+            `}
+            style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+            title="In toa thuốc"
+          >
+            <Printer size={20} />
+          </button>
+        </div>
+      </div>
+    );
+  }
+);
+
+InToaThuoc.displayName = "InToaThuoc";
+export default InToaThuoc;

@@ -1,0 +1,104 @@
+// Hàm parse phân số hoặc số thực sang number
+const parseFractionOrNumber = (value: string | number): number => {
+  if (typeof value === 'number') return value;
+  if (!value) return 0;
+  const strValue = value.toString().trim();
+  if (strValue.includes('/')) {
+    const [tu, mau] = strValue.split('/').map(Number);
+    if (!isNaN(tu) && !isNaN(mau) && mau !== 0) {
+      return tu / mau;
+    }
+    return 0;
+  }
+  const num = parseFloat(strValue);
+  return isNaN(num) ? 0 : num;
+};
+
+// Hàm cập nhật dòng toa thuốc
+const handleUpdateRow = (id: number, field: string, value: any) => {
+  setToaThuocList(prev => {
+    const updated = prev.map(r => {
+      if (r.id !== id) return r;
+
+      let row = { ...r, [field]: value } as ToaThuocRow;
+
+      // Xử lý số lần dùng (so_lan_dung)
+      if (field === 'so_lan_dung') {
+        const numValue = Math.max(0, Number(value) || 0);
+        row = { ...row, [field]: numValue };
+      }
+
+      // Xử lý chọn thuốc
+      if (field === 'thuoc_id') {
+        const sel = thuocList.find(t => t.id === value);
+        if (sel) {
+          row.ten_thuoc = sel.ten_thuoc;
+          row.don_vi = sel.don_vi;
+          row.duong_dung = sel.duong_dung;
+        } else {
+          row.ten_thuoc = '';
+          row.don_vi = '';
+          row.duong_dung = '';
+        }
+      }
+
+      // Bác sĩ chỉnh sửa thủ công tổng số lượng
+      if (field === 'tong_so_luong') {
+        const manualValue = Math.max(0, Number(value) || 0);
+        row.tong_so_luong = manualValue;
+        row.manual_tong_so_luong = true; // Đánh dấu đã sửa thủ công
+      }
+      // Tự động tính tổng khi thay đổi số lần dùng hoặc số lượng mỗi lần nếu chưa chỉnh thủ công
+      else if (['so_lan_dung', 'so_luong_moi_lan', 'so_luong_moi_lan_display'].includes(field) && !row.manual_tong_so_luong) {
+        const soLanDung = Number(field === 'so_lan_dung' ? value : row.so_lan_dung) || 0;
+        const soLuongMoiLanRaw = field === 'so_luong_moi_lan_display' ? value : (row.so_luong_moi_lan_display || row.so_luong_moi_lan).toString();
+        const soLuongMoiLan = parseFractionOrNumber(soLuongMoiLanRaw);
+        const tongSoLuong = soNgayToa * soLanDung * soLuongMoiLan;
+        row.tong_so_luong = Math.round(tongSoLuong * 100) / 100; // làm tròn 2 chữ số thập phân
+
+        // Nếu chỉnh số lượng mỗi lần bằng text (phân số), cập nhật số thực luôn
+        if (field === 'so_luong_moi_lan_display') {
+          row.so_luong_moi_lan = soLuongMoiLan;
+        }
+      }
+
+      return row;
+    });
+
+    // Logic tự động thêm dòng trống mới nếu dòng cuối đã chọn thuốc
+    const last = updated[updated.length - 1];
+    if (last.thuoc_id && updated.filter(r => !r.thuoc_id).length === 0) {
+      updated.push({
+        id: idCounter.current++,
+        thuoc_id: '',
+        ten_thuoc: '',
+        don_vi: '',
+        duong_dung: '',
+        so_lan_dung: 0,
+        so_luong_moi_lan: 0,
+        tong_so_luong: 0,
+        manual_tong_so_luong: false,
+        ghi_chu: '',
+        searchTerm: ''
+      });
+    }
+
+    return updated;
+  });
+};
+
+// Cập nhật tổng tự động khi số ngày thay đổi (chỉ với các dòng chưa sửa tổng thủ công)
+useEffect(() => {
+  setToaThuocList(prev => prev.map(r => {
+    if (!r.manual_tong_so_luong) {
+      const soLanDung = Number(r.so_lan_dung) || 0;
+      const soLuongMoiLan = parseFractionOrNumber(r.so_luong_moi_lan_display || r.so_luong_moi_lan.toString());
+      const tongSoLuong = soNgayToa * soLanDung * soLuongMoiLan;
+      return {
+        ...r,
+        tong_so_luong: Math.round(tongSoLuong * 100) / 100
+      };
+    }
+    return r;
+  }));
+}, [soNgayToa]);

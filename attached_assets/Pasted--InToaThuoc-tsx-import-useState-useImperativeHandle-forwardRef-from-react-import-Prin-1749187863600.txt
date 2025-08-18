@@ -1,0 +1,591 @@
+// InToaThuoc.tsx
+import { useState, useImperativeHandle, forwardRef } from "react";
+import { Printer, Eye } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabaseClient";
+
+interface PatientInfoType {
+  ho_ten?: string;
+  ngay_sinh?: string;
+  thang_tuoi?: number;
+  can_nang?: string;
+  dia_chi?: string;
+  so_dien_thoai?: string;
+}
+
+interface InToaThuocProps {
+  khambenhID: string;
+  disabled?: boolean;
+  patientInfo?: PatientInfoType | null;
+}
+
+interface ToaThuocData {
+  tenBenhNhan: string;
+  chanDoan: string;
+  ngayKham: string;
+  tenBacSi: string;
+  ngayTaiKham?: string;
+  ngaySinh?: string;
+  thangTuoi?: number;
+  canNang?: string;
+  diaChi?: string;
+  soDienThoai?: string;
+  danhSachThuoc: {
+    ten_thuoc: string;
+    don_vi: string;
+    so_lan_dung: number;
+    so_luong_moi_lan: number;
+    tong_so_luong: number;
+    ghi_chu?: string;
+  }[];
+}
+
+export interface InToaThuocRef {
+  handlePreview: () => void;
+  handlePrint: () => void;
+}
+
+const InToaThuoc = forwardRef<InToaThuocRef, InToaThuocProps>(
+  ({ khambenhID, disabled = false, patientInfo }, ref) => {
+    const [loading, setLoading] = useState(false);
+    const [showPreview, setShowPreview] = useState(false);
+    const [toaThuocData, setToaThuocData] = useState<ToaThuocData | null>(null);
+    const { toast } = useToast();
+
+    const fetchToaThuocData = async (): Promise<ToaThuocData> => {
+      try {
+        // Lấy thông tin khám bệnh
+        const { data: kham, error: errKham } = await supabase
+          .from("khambenh")
+          .select("*")
+          .eq("id", khambenhID)
+          .single();
+
+        if (errKham || !kham) throw new Error("Không tìm thấy thông tin khám");
+
+        // Lấy thông tin bệnh nhân - thử các cột có thể có
+        let benhnhan: any = null;
+        const possibleColumns = [
+          "ho_ten, ngay_sinh, thang_tuoi, can_nang, dia_chi, so_dien_thoai",
+          "name, birth_date, age_months, weight, address, phone",
+          "*",
+        ];
+
+        for (const columns of possibleColumns) {
+          const { data, error } = await supabase
+            .from("patients")
+            .select(columns)
+            .eq("id", kham.benhnhan_id)
+            .single();
+
+          if (!error && data) {
+            benhnhan = data;
+            break;
+          }
+        }
+
+        if (!benhnhan) {
+          // Thử từ waiting list nếu không tìm thấy
+          const { data: waitingData } = await supabase
+            .from("waiting_list")
+            .select("*")
+            .eq("benhnhan_id", kham.benhnhan_id)
+            .single();
+
+          if (waitingData) {
+            benhnhan = {
+              ho_ten: "Bệnh nhân chờ khám",
+              ngay_sinh: null,
+              thang_tuoi: null,
+              can_nang: null,
+              dia_chi: null,
+              so_dien_thoai: null,
+            };
+          }
+        }
+
+        // Lấy toa thuốc
+        const { data: toa, error: errToa } = await supabase
+          .from("toathuoc")
+          .select("*")
+          .eq("khambenh_id", khambenhID);
+
+        let danhSachThuoc: any[] = [];
+        if (toa && toa.length > 0) {
+          const thuocIDs = toa.map((t: any) => t.thuoc_id);
+          const { data: thuocData } = await supabase
+            .from("thuoc")
+            .select("id, ten_thuoc, don_vi")
+            .in("id", thuocIDs);
+
+          danhSachThuoc = (toa || []).map((item: any) => {
+            const thuocInfo = thuocData?.find((t: any) => t.id === item.thuoc_id);
+            return {
+              ten_thuoc: thuocInfo?.ten_thuoc || "Không rõ",
+              don_vi: thuocInfo?.don_vi || "viên",
+              so_lan_dung: item.so_lan_dung || 0,
+              so_luong_moi_lan: item.so_luong_moi_lan || 0,
+              tong_so_luong: item.tong_so_luong || 0,
+              ghi_chu: item.ghi_chu || "",
+            };
+          });
+        }
+
+        // Lấy tên bác sĩ
+        const { data: bacsi } = await supabase
+          .from("profiles")
+          .select("ho_ten")
+          .eq("id", kham.bacsi_id)
+          .single();
+
+        const data: ToaThuocData = {
+          tenBenhNhan:
+            benhnhan?.ho_ten || benhnhan?.name || patientInfo?.ho_ten || "Không có tên",
+          chanDoan: kham.chan_doan || "Chưa có chẩn đoán",
+          ngayKham: kham.ngay_kham,
+          tenBacSi: bacsi?.ho_ten || "Bác sĩ",
+          ngayTaiKham: kham.ngay_hen_tai_kham,
+          ngaySinh: benhnhan?.ngay_sinh || benhnhan?.birth_date || patientInfo?.ngay_sinh,
+          thangTuoi: benhnhan?.thang_tuoi || benhnhan?.age_months || patientInfo?.thang_tuoi,
+          canNang: benhnhan?.can_nang || benhnhan?.weight || patientInfo?.can_nang,
+          diaChi: benhnhan?.dia_chi || benhnhan?.address || patientInfo?.dia_chi,
+          soDienThoai: benhnhan?.so_dien_thoai || benhnhan?.phone || patientInfo?.so_dien_thoai,
+          danhSachThuoc,
+        };
+
+        return data;
+      } catch (error) {
+        console.error("Lỗi lấy dữ liệu toa thuốc:", error);
+        throw new Error("Lỗi kết nối database khi lấy toa thuốc");
+      }
+    };
+
+    const handlePreview = async () => {
+      if (toaThuocData) {
+        setShowPreview(!showPreview);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const data = await fetchToaThuocData();
+        setToaThuocData(data);
+        setShowPreview(true);
+
+        toast({
+          title: "Thành công",
+          description: "Đã tải dữ liệu toa thuốc",
+        });
+      } catch (error: any) {
+        toast({
+          title: "Lỗi",
+          description: error.message || "Không thể tải dữ liệu toa thuốc",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const handlePrint = async () => {
+      setLoading(true);
+      try {
+        let data = toaThuocData;
+        if (!data) {
+          data = await fetchToaThuocData();
+          setToaThuocData(data);
+        }
+
+        if (data.danhSachThuoc.length === 0) {
+          toast({
+            title: "Cảnh báo",
+            description: "Toa thuốc trống, không thể in",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const printWindow = window.open("", "_blank", "width=800,height=600");
+        if (!printWindow) {
+          toast({
+            title: "Lỗi",
+            description: "Không thể mở cửa sổ in. Vui lòng cho phép popup trong trình duyệt",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        printWindow.document.write(generatePrintHTML(data));
+        printWindow.document.close();
+        printWindow.focus();
+
+        setTimeout(() => {
+          printWindow.print();
+          printWindow.onafterprint = () => {
+            printWindow.close();
+          };
+        }, 500);
+
+        toast({
+          title: "Thành công",
+          description: "Đã gửi toa thuốc đến máy in",
+        });
+      } catch (error: any) {
+        toast({
+          title: "Lỗi in toa thuốc",
+          description: error.message || "Không thể in toa thuốc",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    useImperativeHandle(ref, () => ({
+      handlePreview,
+      handlePrint,
+    }));
+
+    const generatePrintHTML = (data: ToaThuocData): string => {
+      return `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Toa Thuốc - ${data.tenBenhNhan}</title>
+            <meta charset="utf-8">
+            <style>
+              @page { 
+                size: A5; 
+                margin: 7mm 15mm 15mm 15mm; 
+              }
+              body { 
+                font-family: 'Times New Roman', serif; 
+                padding: 0; 
+                margin: 0; 
+                line-height: 1.3;
+                font-size: 14px;
+              }
+              .container { 
+                max-width: 100%; 
+                padding: 0;
+              }
+              .header { 
+                text-align: center; 
+                margin-bottom: 15px; 
+                border-bottom: 2px solid #333;
+                padding-bottom: 8px;
+                margin-top: 10px;
+              }
+              .header h1 { 
+                margin: 0 0 2px; 
+                font-size: 28px; 
+                color: #2563eb;
+                font-weight: bold;
+              }
+              .header h2 { 
+                margin: 0; 
+                font-size: 18px; 
+                color: #666;
+                font-weight: normal;
+              }
+              .patient-info { 
+                margin-bottom: 12px; 
+                font-size: 13px;
+                line-height: 1.4;
+              }
+              .patient-row { 
+                display: flex; 
+                margin-bottom: 4px; 
+                justify-content: space-between;
+                flex-wrap: wrap;
+              }
+              .patient-item { 
+                display: flex;
+                margin-right: 15px;
+              }
+              .patient-label { 
+                font-weight: bold; 
+                margin-right: 5px;
+                color: #333;
+              }
+              .patient-value { 
+                color: #555;
+              }
+              .info-section { 
+                margin-bottom: 10px; 
+              }
+              .info-row { 
+                display: flex; 
+                margin-bottom: 6px; 
+              }
+              .info-label { 
+                font-weight: bold; 
+                min-width: 100px; 
+                color: #333;
+              }
+              .info-value { 
+                flex: 1; 
+              }
+              .thuoc-section { 
+                margin-top: 8px; 
+              }
+              .thuoc-list { 
+                list-style: none; 
+                padding: 0; 
+              }
+              .thuoc-item { 
+                margin-bottom: 0px; 
+                padding: 4px 8px; 
+                border-left: 3px solid #2563eb; 
+                background-color: #f8fafc;
+              }
+              .thuoc-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 2px;
+              }
+              .thuoc-name { 
+                font-weight: bold; 
+                font-size: 15px; 
+                color: #1e40af;
+                flex: 1;
+              }
+              .thuoc-total {
+                font-weight: bold;
+                color: #dc2626;
+                font-size: 15px;
+              }
+              .thuoc-details { 
+                color: #374151; 
+                font-size: 13px;
+              }
+              .thuoc-note { 
+                font-style: italic; 
+                color: #6b7280; 
+                margin-top: 2px;
+                font-size: 12px;
+              }
+              .footer { 
+                margin-top: 40px; 
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-top: 1px solid #ddd;
+                padding-top: 20px;
+              }
+              .footer-left {
+                font-size: 14px;
+                color: #374151;
+              }
+              .footer-right {
+                text-align: right;
+              }
+              .signature-line {
+                border-bottom: 1px solid #000;
+                width: 200px;
+                height: 60px;
+                margin-top: 10px;
+              }
+              .doctor-name {
+                font-weight: bold;
+                font-size: 14px;
+                color: #1e40af;
+                margin-top: 5px;
+              }
+              @media print {
+                body { font-size: 12px; }
+                .thuoc-item { break-inside: avoid; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>🏥 TOA THUỐC</h1>
+                <h2>Phòng Khám Nhi Khoa</h2>
+              </div>
+              
+              <div class="patient-info">
+                <div class="patient-row">
+                  <div class="patient-item">
+                    <span class="patient-label">Họ tên:</span>
+                    <span class="patient-value">${data.tenBenhNhan}</span>
+                  </div>
+                  <div class="patient-item">
+                    <span class="patient-label">Ngày sinh:</span>
+                    <span class="patient-value">${data.ngaySinh ? new Date(data.ngaySinh).toLocaleDateString('vi-VN') : ''}</span>
+                  </div>
+                  <div class="patient-item">
+                    <span class="patient-label">Tuổi:</span>
+                    <span class="patient-value">${data.thangTuoi ? Math.floor(data.thangTuoi / 12) + ' tuổi ' + (data.thangTuoi % 12) + ' tháng' : ''}</span>
+                  </div>
+                </div>
+                <div class="patient-row">
+                  <div class="patient-item">
+                    <span class="patient-label">CN:</span>
+                    <span class="patient-value">${data.canNang || ''} kg</span>
+                  </div>
+                  <div class="patient-item">
+                    <span class="patient-label">Địa chỉ:</span>
+                    <span class="patient-value">${data.diaChi || ''}</span>
+                  </div>
+                  <div class="patient-item">
+                    <span class="patient-label">SĐT:</span>
+                    <span class="patient-value">${data.soDienThoai || ''}</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="info-section">
+                <div class="info-row">
+                  <span class="info-label">Chẩn đoán:</span>
+                  <span class="info-value">${data.chanDoan}</span>
+                </div>
+              </div>
+
+              <div class="thuoc-section">
+                ${data.danhSachThuoc.length > 0 ? `
+                  <ul class="thuoc-list">
+                    ${data.danhSachThuoc.map((thuoc, index) => `
+                      <li class="thuoc-item">
+                        <div class="thuoc-header">
+                          <div class="thuoc-name">${index + 1}. ${thuoc.ten_thuoc}</div>
+                          <div class="thuoc-total">${thuoc.tong_so_luong} ${thuoc.don_vi}</div>
+                        </div>
+                        <div class="thuoc-details">
+                          <strong>Liều dùng:</strong> ${thuoc.so_lan_dung} lần/ngày, 
+                          mỗi lần ${thuoc.so_luong_moi_lan} ${thuoc.don_vi}
+                        </div>
+                        ${thuoc.ghi_chu ? `<div class="thuoc-note">Ghi chú: ${thuoc.ghi_chu}</div>` : ''}
+                      </li>
+                    `).join('')}
+                  </ul>
+                ` : `
+                  <div style="text-align: center; color: #6b7280; font-style: italic;">
+                    Không có thuốc trong toa
+                  </div>
+                `}
+              </div>
+
+              <div class="footer">
+                <div class="footer-left">
+                  <div><strong>Ngày tái khám:</strong> ${data.ngayTaiKham ? new Date(data.ngayTaiKham).toLocaleDateString('vi-VN') : '___/___/______'}</div>
+                  <div style="margin-top: 10px;">Vui lòng theo dõi tình trạng sức khỏe và tái khám theo hẹn</div>
+                </div>
+                <div class="footer-right">
+                  <div><strong>Ngày khám:</strong> ${new Date(data.ngayKham).toLocaleDateString('vi-VN')}</div>
+                  <div style="margin-top: 8px;"><strong>Bác sĩ khám bệnh</strong></div>
+                  <div class="doctor-name">${data.tenBacSi}</div>
+                  <div class="signature-line"></div>
+                </div>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+    };
+
+    if (!khambenhID) return null;
+
+    return (
+      <>
+        {showPreview && toaThuocData && (
+          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
+            <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">
+              📋 Xem trước toa thuốc
+            </h4>
+            <div className="space-y-2 text-sm">
+              <div>
+                <strong>Bệnh nhân:</strong> {toaThuocData.tenBenhNhan}
+              </div>
+              <div>
+                <strong>Chẩn đoán:</strong> {toaThuocData.chanDoan}
+              </div>
+              <div>
+                <strong>Ngày khám:</strong>{" "}
+                {new Date(toaThuocData.ngayKham).toLocaleDateString("vi-VN")}
+              </div>
+              <div>
+                <strong>Bác sĩ:</strong> {toaThuocData.tenBacSi}
+              </div>
+
+              <div className="mt-3">
+                <strong>
+                  Danh sách thuốc ({toaThuocData.danhSachThuoc.length} loại):
+                </strong>
+                {toaThuocData.danhSachThuoc.length > 0 ? (
+                  <ul className="mt-2 space-y-2">
+                    {toaThuocData.danhSachThuoc.map((thuoc, idx) => (
+                      <li
+                        key={idx}
+                        className="bg-white dark:bg-gray-700 p-2 rounded border-l-4 border-blue-500"
+                      >
+                        <div className="font-medium text-blue-700 dark:text-blue-300">
+                          {idx + 1}. {thuoc.ten_thuoc}
+                        </div>
+                        <div className="text-gray-600 dark:text-gray-300">
+                          {thuoc.so_lan_dung} lần/ngày × {thuoc.so_luong_moi_lan}{" "}
+                          {thuoc.don_vi} = {thuoc.tong_so_luong} {thuoc.don_vi}
+                        </div>
+                        {thuoc.ghi_chu && (
+                          <div className="text-gray-500 dark:text-gray-400 italic text-xs">
+                            {thuoc.ghi_chu}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-gray-500 dark:text-gray-400 italic mt-2">
+                    Chưa có thuốc trong toa
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Hai nút Xem trước + In toa “bám đáy” cha relative */}
+        <div className="absolute right-0 bottom-0 flex flex-col space-y-2">
+          <button
+            onClick={handlePreview}
+            disabled={disabled}
+            className={`
+              transition-all duration-200 ease-in-out flex items-center justify-center
+              bg-green-500 hover:bg-green-600 active:bg-green-700
+              text-white text-sm font-medium
+              rounded-md
+              h-12 w-12
+              ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:scale-105"}
+            `}
+            style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+            title="Xem trước toa thuốc"
+          >
+            <Eye size={20} />
+          </button>
+
+          <button
+            onClick={handlePrint}
+            disabled={disabled}
+            className={`
+              transition-all duration-200 ease-in-out flex items-center justify-center
+              bg-blue-600 hover:bg-blue-700 active:bg-blue-800
+              text-white text-sm font-medium
+              rounded-md
+              h-12 w-12
+              ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:scale-105"}
+            `}
+            style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+            title="In toa thuốc"
+          >
+            <Printer size={20} />
+          </button>
+        </div>
+      </>
+    );
+  }
+);
+
+InToaThuoc.displayName = "InToaThuoc";
+export default InToaThuoc;

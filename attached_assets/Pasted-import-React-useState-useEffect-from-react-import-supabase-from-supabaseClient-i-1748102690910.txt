@@ -1,0 +1,121 @@
+import React, { useState, useEffect } from "react";
+import { supabase } from "./supabaseClient";
+import { Typography, TextField, Button, Box } from "@mui/material";
+
+interface KhamBenh {
+  benhnhan_id: string;
+  bacsi_id: string;
+  ngay_kham: string;
+  trieu_chung: string;
+  chan_doan: string;
+  so_ngay_toa: number;
+}
+
+interface KhamBenhDoctorProps {
+  setKhambenhID: React.Dispatch<React.SetStateAction<string | null>>;
+  setKhambenh: React.Dispatch<React.SetStateAction<KhamBenh>>;
+  khambenh: KhamBenh;
+}
+
+const KhamBenhDoctor: React.FC<KhamBenhDoctorProps> = ({
+  setKhambenhID,
+  setKhambenh,
+  khambenh,
+}) => {
+  const [trieuChung, setTrieuChung] = useState("");
+  const [chanDoan, setChanDoan] = useState("");
+  const [bacsiId, setBacsiId] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        setBacsiId(user.id);
+        setKhambenh((prev) => ({ ...prev, bacsi_id: user.id }));
+      }
+    })();
+  }, [setKhambenh]);
+
+  const handleLuuKhamBenh = async () => {
+    if (!khambenh.benhnhan_id) {
+      alert("Vui lòng chọn bệnh nhân.");
+      return;
+    }
+    try {
+      const { data, error } = await supabase
+        .from("khambenh")
+        .insert([
+          {
+            benhnhan_id: khambenh.benhnhan_id,
+            bacsi_id: bacsiId,
+            ngay_kham: khambenh.ngay_kham,
+            trieu_chung: trieuChung,
+            chan_doan: chanDoan,
+            so_ngay_toa: khambenh.so_ngay_toa,
+          },
+        ])
+        .select()
+        .single();
+      if (error) throw error;
+      setKhambenhID(data.id);
+      setTrieuChung("");
+      setChanDoan("");
+      alert("Đã lưu khám bệnh.");
+    } catch (err: any) {
+      alert("Lỗi: " + err.message);
+    }
+  };
+
+  return (
+    <Box sx={{ width: "100%" }}>
+      {/* Triệu chứng và chẩn đoán */}
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: "repeat(12, 1fr)",
+          gap: 2,
+          mb: 2,
+        }}
+      >
+        <Box sx={{ gridColumn: "span 4" }}>
+          <TextField
+            label="Triệu chứng"
+            multiline
+            minRows={1}
+            maxRows={5}
+            fullWidth
+            value={trieuChung}
+            onChange={(e) => setTrieuChung(e.target.value)}
+          />
+        </Box>
+
+        <Box sx={{ gridColumn: "span 4" }}>
+          <TextField
+            label="Chẩn đoán"
+            multiline
+            minRows={1}
+            maxRows={5}
+            fullWidth
+            value={chanDoan}
+            onChange={(e) => setChanDoan(e.target.value)}
+          />
+        </Box>
+
+        <Box sx={{ gridColumn: "span 4" }} />
+      </Box>
+
+      <Button
+        variant="contained"
+        color="primary"
+        onClick={handleLuuKhamBenh}
+        sx={{ mb: 2 }}
+      >
+        Lưu khám bệnh
+      </Button>
+    </Box>
+  );
+};
+
+export default KhamBenhDoctor;

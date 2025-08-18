@@ -1,0 +1,50 @@
+2025-08-09T02:34:09.654838847Z     at new NodeError (node:internal/errors:405:5)
+2025-08-09T02:34:09.654844517Z     at validateString (node:internal/validators:162:11)
+2025-08-09T02:34:09.654852588Z     at Object.resolve (node:path:1097:7)
+2025-08-09T02:34:09.654858898Z     at serveStatic (file:///opt/render/project/src/dist/index.js:1266:26)
+2025-08-09T02:34:09.654864759Z     at file:///opt/render/project/src/dist/index.js:1317:5 {
+2025-08-09T02:34:09.654870259Z   code: 'ERR_INVALID_ARG_TYPE'
+2025-08-09T02:34:09.65487497Z }
+2025-08-09T02:34:09.65487957Z 
+2025-08-09T02:34:09.65488511Z Node.js v18.20.4
+2025-08-09T02:35:27.804713275Z ==> Deploying...
+2025-08-09T02:35:53.241153542Z ==> Running 'npm run start'
+2025-08-09T02:35:54.343859737Z 
+2025-08-09T02:35:54.343879148Z > rest-express@1.0.0 start
+2025-08-09T02:35:54.343883398Z > NODE_ENV=production node dist/index.js
+2025-08-09T02:35:54.343885968Z 
+2025-08-09T02:35:57.453130115Z node:internal/errors:496
+2025-08-09T02:35:57.453150516Z     ErrorCaptureStackTrace(err);
+2025-08-09T02:35:57.453153656Z     ^
+2025-08-09T02:35:57.453156156Z 
+2025-08-09T02:35:57.453159306Z TypeError [ERR_INVALID_ARG_TYPE]: The "paths[0]" argument must be of type string. Received undefined
+2025-08-09T02:35:57.453164337Z     at new NodeError (node:internal/errors:405:5)
+2025-08-09T02:35:57.453167107Z     at validateString (node:internal/validators:162:11)
+2025-08-09T02:35:57.453170327Z     at Object.resolve (node:path:1097:7)
+2025-08-09T02:35:57.453173547Z     at serveStatic (file:///opt/render/project/src/dist/index.js:1266:26)
+2025-08-09T02:35:57.453176807Z     at file:///opt/render/project/src/dist/index.js:1317:5 {
+2025-08-09T02:35:57.453179387Z   code: 'ERR_INVALID_ARG_TYPE'
+2025-08-09T02:35:57.453181888Z }
+2025-08-09T02:35:57.453184168Z 
+2025-08-09T02:35:57.453186648Z Node.js v18.20.4
+2025-08-09T02:35:59.34132156Z ==> Exited with status 1
+2025-08-09T02:35:59.501504578Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
+2025-08-09T02:36:04.132180821Z ==> Running 'npm run start'
+2025-08-09T02:36:05.22531867Z 
+2025-08-09T02:36:05.225344931Z > rest-express@1.0.0 start
+2025-08-09T02:36:05.225349582Z > NODE_ENV=production node dist/index.js
+2025-08-09T02:36:05.225351852Z 
+2025-08-09T02:36:08.427968651Z node:internal/errors:496
+2025-08-09T02:36:08.428016223Z     ErrorCaptureStackTrace(err);
+2025-08-09T02:36:08.428021103Z     ^
+2025-08-09T02:36:08.428025033Z 
+2025-08-09T02:36:08.428029703Z TypeError [ERR_INVALID_ARG_TYPE]: The "paths[0]" argument must be of type string. Received undefined
+2025-08-09T02:36:08.428038474Z     at new NodeError (node:internal/errors:405:5)
+2025-08-09T02:36:08.428043544Z     at validateString (node:internal/validators:162:11)
+2025-08-09T02:36:08.428049655Z     at Object.resolve (node:path:1097:7)
+2025-08-09T02:36:08.428054965Z     at serveStatic (file:///opt/render/project/src/dist/index.js:1266:26)
+2025-08-09T02:36:08.428059715Z     at file:///opt/render/project/src/dist/index.js:1317:5 {
+2025-08-09T02:36:08.428064835Z   code: 'ERR_INVALID_ARG_TYPE'
+2025-08-09T02:36:08.428069625Z }
+2025-08-09T02:36:08.428106267Z 
+2025-08-09T02:36:08.428114888Z Node.js v18.20.4

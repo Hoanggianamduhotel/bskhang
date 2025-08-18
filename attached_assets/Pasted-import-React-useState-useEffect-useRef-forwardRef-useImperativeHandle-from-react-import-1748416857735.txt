@@ -1,0 +1,146 @@
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import {
+  Box,
+  Button,
+  IconButton,
+  Paper,
+  Popper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+  Drawer,
+} from '@mui/material';
+import { Trash2, Plus, Search, Save } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
+import { useToast } from '@/hooks/use-toast';
+
+interface Thuoc {
+  id: string;
+  ten_thuoc: string;
+  don_vi: string;
+  duong_dung: string;
+  gia_ban: number;
+  so_luong_ton: number;
+}
+
+interface ToaThuocRow {
+  id: number;
+  thuoc_id: string;
+  ten_thuoc: string;
+  don_vi: string;
+  duong_dung: string;
+  so_lan_dung: number;
+  so_luong_moi_lan: number;
+  so_luong_moi_lan_display?: string;
+  tong_so_luong: number;
+  manual_tong_so_luong?: boolean;
+  ghi_chu: string;
+  searchTerm?: string;
+}
+
+interface ToaThuocDoctorProps {
+  khambenhID: string;
+}
+
+export interface ToaThuocDoctorRef {
+  focus: () => void;
+}
+
+const ToaThuocDoctorMUI = forwardRef<ToaThuocDoctorRef, ToaThuocDoctorProps>(({ khambenhID }, ref) => {
+  const { toast } = useToast();
+  const idCounter = useRef(1);
+
+  // State
+  const [toaThuocList, setToaThuocList] = useState<ToaThuocRow[]>([{ id: 0, thuoc_id: '', ten_thuoc: '', don_vi: '', duong_dung: '', so_lan_dung: 0, so_luong_moi_lan: 0, tong_so_luong: 0, manual_tong_so_luong: false, ghi_chu: '', searchTerm: '' }]);
+  const [soNgayToa, setSoNgayToa] = useState<number>(3);
+  const [ngayHen, setNgayHen] = useState<string>('');
+  const [searchResults, setSearchResults] = useState<Thuoc[]>([]);
+  const [currentSearchRowId, setCurrentSearchRowId] = useState<number | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Save drawer toggle state
+  const saveButtonRef = useRef<HTMLButtonElement>(null);
+  const [showSaveDrawer, setShowSaveDrawer] = useState(false);
+  const [hasTriggeredDrawer, setHasTriggeredDrawer] = useState(false);
+
+  // Expose focus
+  useImperativeHandle(ref, () => ({ focus: () => { saveButtonRef.current?.focus(); } }));
+
+  // Reset and load logic...
+  useEffect(() => {
+    // reset state when khambenhID changes
+    setSoNgayToa(0);
+    setNgayHen('');
+    setToaThuocList([{ id: 0, thuoc_id: '', ten_thuoc: '', don_vi: '', duong_dung: '', so_lan_dung: 0, so_luong_moi_lan: 0, tong_so_luong: 0, manual_tong_so_luong: false, ghi_chu: '', searchTerm: '' }]);
+    idCounter.current = 1;
+
+    // loadData omitted for brevity
+  }, [khambenhID]);
+
+  // Handlers: handleKeyDown, focusFirstMedicineSearch, handleInputKeyDown, etc. (omitted)
+
+  const handleSave = async () => {
+    if (!khambenhID) return;
+    setIsSaving(true);
+    // ... save logic omitted
+    setIsSaving(false);
+
+    // After saving, reset hasTriggeredDrawer to allow re-trigger if needed next time
+    setHasTriggeredDrawer(false);
+  };
+
+  return (
+    <>
+      {/* Main content omitted for brevity: table, inputs, rows... */}
+
+      {/* Action buttons */}
+      <Box display="flex" gap={2} sx={{ px:2, py:1.5, backgroundColor:'#f8f9fa', borderRadius:'0 0 8px 8px', borderTop:'1px solid #e9ecef', mt:0 }}>
+        <Button variant="outlined" startIcon={<Plus size={16}/>} onClick={() => {/* add row */}} disabled={isSaving}>Thêm dòng</Button>
+
+        <Button
+          ref={saveButtonRef}
+          variant="contained"
+          color="success"
+          onClick={handleSave}
+          onFocus={() => {
+            if (!hasTriggeredDrawer) {
+              setShowSaveDrawer(true);
+              setHasTriggeredDrawer(true);
+            }
+          }}
+          disabled={isSaving || !khambenhID}
+          startIcon={isSaving ? <Box sx={{ width:16, height:16, border:'2px solid currentColor', borderTop:'2px solid transparent', borderRadius:'50%', animation:'spin 1s linear infinite', '@keyframes spin':{ '0%':{ transform:'rotate(0deg)'}, '100%':{ transform:'rotate(360deg)'} }}} /> : <Save size={16}/>}        
+        >
+          {isSaving ? 'Đang lưu...' : '💾 Lưu toa thuốc'}
+        </Button>
+
+        <Button variant="outlined" disabled={isSaving}>🖨️ In toa</Button>
+      </Box>
+
+      {/* Save Drawer */}
+      <Drawer
+        anchor="right"
+        open={showSaveDrawer}
+        onClose={() => setShowSaveDrawer(false)}
+        ModalProps={{ keepMounted: true }}
+        PaperProps={{ sx:{ width:80, display:'flex', alignItems:'center', justifyContent:'center', backgroundColor:'#fff' } }}
+      >
+        <Typography variant="h6" sx={{ transform:'rotate(-90deg)', whiteSpace:'nowrap', letterSpacing:'0.1em' }}>
+          Lưu khám
+        </Typography>
+      </Drawer>
+    </>
+  );
+});
+
+ToaThuocDoctorMUI.displayName = 'ToaThuocDoctorMUI';
+
+export default ToaThuocDoctorMUI;

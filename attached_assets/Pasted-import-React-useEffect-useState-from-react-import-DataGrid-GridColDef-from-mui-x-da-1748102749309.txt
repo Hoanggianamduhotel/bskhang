@@ -1,0 +1,77 @@
+import React, { useEffect, useState } from "react";
+import { DataGrid, GridColDef } from "@mui/x-data-grid";
+import { supabase } from "./supabaseClient";
+
+interface BenhNhanCho {
+  ho_ten: string;
+  benhnhan_id: string; // UUID làm khóa
+  ngay_tao: string;
+}
+
+interface DanhSachChoProps {
+  onSelect: (bn: BenhNhanCho) => void;
+  selectedId: string | null;
+}
+
+const DanhSachChoGrid: React.FC<DanhSachChoProps> = ({
+  onSelect,
+  selectedId,
+}) => {
+  const [dsCho, setDsCho] = useState<BenhNhanCho[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchDanhSachCho = async () => {
+    setLoading(true);
+    const today = new Date().toLocaleDateString("en-CA", {
+      timeZone: "Asia/Ho_Chi_Minh",
+    });
+    try {
+      const { data, error } = await supabase
+        .from("danhsachcho")
+        .select("ho_ten, benhnhan_id, ngay_tao")
+        .eq("ngay_tao", today);
+
+      if (error) {
+        console.error("Lỗi khi lấy danh sách chờ:", error.message);
+      } else {
+        setDsCho(data || []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDanhSachCho();
+  }, []);
+
+  const columns: GridColDef[] = [
+    { field: "ho_ten", headerName: "Họ tên", flex: 1 },
+    { field: "benhnhan_id", headerName: "Mã BN", width: 200 },
+    { field: "ngay_tao", headerName: "Ngày tạo", width: 120 },
+  ];
+
+  return (
+    <div style={{ height: 400, width: "100%", padding: 0 }}>
+      <h3 style={{ margin: 0, padding: 8, fontSize: "1rem" }}>
+        Danh sách bệnh nhân chờ hôm nay
+      </h3>
+      <DataGrid
+        rows={dsCho}
+        getRowId={(row) => row.benhnhan_id}
+        columns={columns}
+        loading={loading}
+        hideFooter // 👈 Ẩn phần footer
+        onRowClick={(params) => {
+          const selected = dsCho.find((item) => item.benhnhan_id === params.id);
+          if (selected) onSelect(selected);
+        }}
+        getRowClassName={(params) =>
+          params.row.benhnhan_id === selectedId ? "Mui-selected" : ""
+        }
+      />
+    </div>
+  );
+};
+
+export default DanhSachChoGrid;

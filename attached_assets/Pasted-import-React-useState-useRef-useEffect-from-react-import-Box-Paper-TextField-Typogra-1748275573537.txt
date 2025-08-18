@@ -1,0 +1,152 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { Box, Paper, TextField, Typography } from '@mui/material';
+
+// Trong component ToaThuocDoctorMUI, thay phần input tìm thuốc và dialog thành:
+
+const [searchTerm, setSearchTerm] = useState('');
+const [searchResults, setSearchResults] = useState<Thuoc[]>([]);
+const [showDropdown, setShowDropdown] = useState(false);
+const [selectedIndex, setSelectedIndex] = useState(-1);
+const searchDebounceTimer = useRef<NodeJS.Timeout | null>(null);
+
+const onSearchTermChange = (value: string, rowId: number) => {
+  setCurrentSearchRowId(rowId);
+  setSearchTerm(value);
+  setShowDropdown(true);
+
+  if (searchDebounceTimer.current) clearTimeout(searchDebounceTimer.current);
+
+  searchDebounceTimer.current = setTimeout(async () => {
+    if (!value.trim()) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('thuoc')
+        .select('id, ten_thuoc, don_vi, duong_dung')
+        .ilike('ten_thuoc', `%${value}%`)
+        .limit(20);
+      if (error) throw error;
+      setSearchResults(data || []);
+      setSelectedIndex(0);
+      setShowDropdown(true);
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        title: 'Lỗi tìm thuốc',
+        description: `Không thể tìm kiếm thuốc: ${error.message}`,
+        variant: 'destructive',
+      });
+      setSearchResults([]);
+      setShowDropdown(false);
+    } finally {
+      setIsLoading(false);
+    }
+  }, 300);
+};
+
+const onSelectThuocFromDropdown = (thuoc: Thuoc) => {
+  if (currentSearchRowId === null) return;
+  handleUpdateRow(currentSearchRowId, 'thuoc_id', thuoc.id);
+  handleUpdateRow(currentSearchRowId, 'searchTerm', '');
+  setShowDropdown(false);
+  setSelectedIndex(-1);
+
+  setTimeout(() => {
+    const nextInput = document.querySelector(
+      `[data-row-id="${currentSearchRowId}"][data-field="so_lan_dung"]`
+    ) as HTMLInputElement;
+    nextInput?.focus();
+  }, 100);
+};
+
+// Trong TableBody map từng row, phần Tên thuốc thay thế đoạn cũ như sau:
+
+<TableCell sx={{ py: 1, position: 'relative' }}>
+  {row.ten_thuoc ? (
+    <Box display="flex" alignItems="center">
+      <Box flexGrow={1}>
+        <Typography fontWeight="medium">{row.ten_thuoc}</Typography>
+        <Typography variant="body2" color="text.secondary">{row.duong_dung}</Typography>
+      </Box>
+      <IconButton size="small" onClick={() => handleUpdateRow(row.id, 'thuoc_id', '')}>
+        ×
+      </IconButton>
+    </Box>
+  ) : (
+    <>
+      <TextField
+        placeholder="Tìm thuốc... (Enter để chọn)"
+        value={row.searchTerm || ''}
+        onChange={e => onSearchTermChange(e.target.value, row.id)}
+        onKeyDown={e => {
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setSelectedIndex(i => Math.min(i + 1, searchResults.length - 1));
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setSelectedIndex(i => Math.max(i - 1, 0));
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (selectedIndex >= 0 && selectedIndex < searchResults.length) {
+              onSelectThuocFromDropdown(searchResults[selectedIndex]);
+            }
+          } else if (e.key === 'Escape') {
+            setShowDropdown(false);
+          }
+        }}
+        InputProps={{
+          startAdornment: <Search size={16} style={{ marginRight: 8 }} />,
+          autoComplete: 'off',
+        }}
+        fullWidth
+        variant="standard"
+        inputProps={{
+          'data-field': 'search_thuoc',
+          'data-row-id': row.id,
+        }}
+        sx={{
+          '& .MuiInputBase-root:focus-within': {
+            backgroundColor: '#e3f2fd',
+          },
+        }}
+      />
+
+      {showDropdown && searchResults.length > 0 && currentSearchRowId === row.id && (
+        <Paper
+          sx={{
+            position: 'absolute',
+            zIndex: 10,
+            mt: 0.5,
+            width: '100%',
+            maxHeight: 250,
+            overflowY: 'auto',
+            boxShadow: 3,
+          }}
+        >
+          {searchResults.map((thuoc, idx) => (
+            <Box
+              key={thuoc.id}
+              sx={{
+                p: 1,
+                cursor: 'pointer',
+                bgcolor: idx === selectedIndex ? 'action.selected' : 'transparent',
+                '&:hover': { bgcolor: 'action.hover' },
+              }}
+              onMouseEnter={() => setSelectedIndex(idx)}
+              onClick={() => onSelectThuocFromDropdown(thuoc)}
+            >
+              <Typography fontWeight="bold">{thuoc.ten_thuoc}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                {thuoc.duong_dung} - {thuoc.don_vi}
+              </Typography>
+            </Box>
+          ))}
+        </Paper>
+      )}
+    </>
+  )}
+</TableCell>

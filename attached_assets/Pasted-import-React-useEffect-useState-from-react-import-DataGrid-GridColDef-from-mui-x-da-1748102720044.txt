@@ -1,0 +1,79 @@
+import React, { useEffect, useState } from "react";
+import { DataGrid, GridColDef } from "@mui/x-data-grid";
+import { supabase } from "./supabaseClient";
+
+interface VisitHistoryProps {
+  benhnhan_id: string;
+  onSelectVisit: (visitId: string) => void;
+}
+
+interface Visit {
+  id: string;
+  ngay_kham: string;
+  chan_doan: string;
+  status?: string;
+}
+
+const VisitHistory: React.FC<VisitHistoryProps> = ({
+  benhnhan_id,
+  onSelectVisit,
+}) => {
+  const [visits, setVisits] = useState<Visit[]>([]);
+
+  useEffect(() => {
+    const fetchVisitHistory = async () => {
+      const { data, error } = await supabase
+        .from("khambenh")
+        .select("id, ngay_kham, chan_doan, status")
+        .eq("benhnhan_id", benhnhan_id)
+        .order("ngay_kham", { ascending: false });
+
+      if (error) {
+        console.error("Lỗi lấy lịch sử khám:", error);
+        return;
+      }
+
+      const validVisits = (data || []).filter(
+        (visit: Visit) =>
+          !visit.status || visit.status.trim().toLowerCase() !== "hủy"
+      );
+
+      setVisits(validVisits);
+    };
+
+    if (benhnhan_id) fetchVisitHistory();
+    else setVisits([]);
+  }, [benhnhan_id]);
+
+  const visitColumns: GridColDef[] = [
+    { field: "ngay_kham", headerName: "Ngày khám", flex: 1 },
+    { field: "chan_doan", headerName: "Chẩn đoán", flex: 2 },
+  ];
+
+  return (
+    <div style={{ width: "100%" }}>
+      {visits.length > 0 ? (
+        <DataGrid
+          rows={visits}
+          columns={visitColumns}
+          autoHeight
+          hideFooterSelectedRowCount
+          hideFooterPagination
+          onRowClick={(params) => onSelectVisit(params.row.id as string)}
+          sx={{
+            "& .MuiDataGrid-virtualScroller": {
+              overflowX: "hidden",
+              "&::-webkit-scrollbar": { display: "none" },
+              scrollbarWidth: "none",
+              "-ms-overflow-style": "none",
+            },
+          }}
+        />
+      ) : (
+        <p className="text-sm text-gray-500">Không có lịch sử khám.</p>
+      )}
+    </div>
+  );
+};
+
+export default VisitHistory;

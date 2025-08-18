@@ -1,0 +1,19 @@
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  serverExternalPackages: ['@supabase/supabase-js'],
+  env: {
+    SUPABASE_URL: process.env.SUPABASE_URL || 'https://luimiikovmsaeqmocjhu.supabase.co',
+    SUPABASE_KEY: process.env.SUPABASE_KEY,
+  },
+  images: {
+    domains: ['luimiikovmsaeqmocjhu.supabase.co'],
+  },
+  // Disable x-powered-by header
+  poweredByHeader: false,
+  // Enable compression
+  compress: true,
+  // Optimize for production
+  productionBrowserSourceMaps: false,
+}
+
+export default nextConfig

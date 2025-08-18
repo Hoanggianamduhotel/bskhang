@@ -1,0 +1,236 @@
+// src/components/InToaThuoc.tsx
+import React, { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import { Printer, Eye } from "lucide-react";
+
+interface PatientInfoType {
+  ho_ten?: string;
+  ngay_sinh?: string;
+  thang_tuoi?: number;
+  can_nang?: string;
+  dia_chi?: string;
+  so_dien_thoai?: string;
+}
+
+interface InToaThuocProps {
+  khambenhID: string;
+  disabled?: boolean;
+  patientInfo?: PatientInfoType | null;
+}
+
+interface ToaThuocData {
+  tenBenhNhan: string;
+  chanDoan: string;
+  ngayKham: string;
+  tenBacSi: string;
+  ngayTaiKham?: string;
+  ngaySinh?: string;
+  thangTuoi?: number;
+  canNang?: string;
+  diaChi?: string;
+  soDienThoai?: string;
+  danhSachThuoc: {
+    ten_thuoc: string;
+    don_vi: string;
+    so_lan_dung: number;
+    so_luong_moi_lan: number;
+    tong_so_luong: number;
+    ghi_chu?: string;
+  }[];
+}
+
+export default function InToaThuoc({
+  khambenhID,
+  disabled = false,
+  patientInfo,
+}: InToaThuocProps) {
+  const [loading, setLoading] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [toaThuocData, setToaThuocData] = useState<ToaThuocData | null>(null);
+  const { toast } = useToast();
+
+  const fetchToaThuocData = async (): Promise<ToaThuocData> => {
+    try {
+      const response = await apiRequest("GET", `/api/toa-thuoc/${khambenhID}`);
+      if (!response.ok) {
+        throw new Error("Không thể lấy dữ liệu toa thuốc");
+      }
+      const data = await response.json();
+
+      if (patientInfo) {
+        return {
+          ...data,
+          tenBenhNhan: patientInfo.ho_ten || data.tenBenhNhan,
+          ngaySinh: patientInfo.ngay_sinh || data.ngaySinh,
+          thangTuoi: patientInfo.thang_tuoi || data.thangTuoi,
+          canNang: patientInfo.can_nang || data.canNang,
+          diaChi: patientInfo.dia_chi || data.diaChi,
+          soDienThoai: patientInfo.so_dien_thoai || data.soDienThoai,
+        };
+      }
+      return data;
+    } catch (error) {
+      throw new Error("Lỗi kết nối server khi lấy toa thuốc");
+    }
+  };
+
+  const generatePrintHTML = (data: ToaThuocData): string => {
+    // ... (giữ nguyên logic generate HTML như cũ)
+    return `<!DOCTYPE html> ...`;
+  };
+
+  const handlePreview = async () => {
+    if (toaThuocData) {
+      setShowPreview((prev) => !prev);
+      return;
+    }
+    setLoading(true);
+    try {
+      const data = await fetchToaThuocData();
+      setToaThuocData(data);
+      setShowPreview(true);
+      toast({ title: "Thành công", description: "Đã tải dữ liệu toa thuốc" });
+    } catch (err: any) {
+      toast({
+        title: "Lỗi",
+        description: err.message || "Không thể tải dữ liệu toa thuốc",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePrint = async () => {
+    setLoading(true);
+    try {
+      let data = toaThuocData;
+      if (!data) {
+        data = await fetchToaThuocData();
+        setToaThuocData(data);
+      }
+
+      if (data.danhSachThuoc.length === 0) {
+        toast({ title: "Cảnh báo", description: "Toa thuốc trống, không thể in", variant: "destructive" });
+        return;
+      }
+
+      const printWindow = window.open("", "_blank", "width=800,height=600");
+      if (!printWindow) {
+        toast({ title: "Lỗi", description: "Không thể mở cửa sổ in. Hãy bật popup.", variant: "destructive" });
+        return;
+      }
+
+      printWindow.document.write(generatePrintHTML(data));
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.onafterprint = () => printWindow.close();
+      }, 500);
+
+      toast({ title: "Thành công", description: "Đã gửi toa thuốc đến máy in" });
+    } catch (err: any) {
+      toast({ title: "Lỗi in toa thuốc", description: err?.message || "Không thể in toa thuốc", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!khambenhID) return null;
+
+  return (
+    // Thẻ gốc phải có className="relative" để hai nút absolute bên trong đứng đúng vị trí
+    <div className="relative">
+      {/* Vùng hiển thị preview + lịch sử toa thuốc */}
+      <div className="space-y-4 pr-8">
+        {showPreview && toaThuocData && (
+          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
+            <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">
+              📋 Xem trước toa thuốc
+            </h4>
+            <div className="space-y-2 text-sm">
+              <div><strong>Bệnh nhân:</strong> {toaThuocData.tenBenhNhan}</div>
+              <div><strong>Chẩn đoán:</strong> {toaThuocData.chanDoan}</div>
+              <div>
+                <strong>Ngày khám:</strong> {new Date(toaThuocData.ngayKham).toLocaleDateString("vi-VN")}
+              </div>
+              <div><strong>Bác sĩ:</strong> {toaThuocData.tenBacSi}</div>
+
+              <div className="mt-3">
+                <strong>Danh sách thuốc ({toaThuocData.danhSachThuoc.length} loại):</strong>
+                {toaThuocData.danhSachThuoc.length > 0 ? (
+                  <ul className="mt-2 space-y-2">
+                    {toaThuocData.danhSachThuoc.map((thuoc, idx) => (
+                      <li key={idx} className="bg-white dark:bg-gray-700 p-2 rounded border-l-4 border-blue-500">
+                        <div className="font-medium text-blue-700 dark:text-blue-300">
+                          {idx + 1}. {thuoc.ten_thuoc}
+                        </div>
+                        <div className="text-gray-600 dark:text-gray-300">
+                          {thuoc.so_lan_dung} lần/ngày × {thuoc.so_luong_moi_lan} {thuoc.don_vi} = {thuoc.tong_so_luong} {thuoc.don_vi}
+                        </div>
+                        {thuoc.ghi_chu && (
+                          <div className="text-gray-500 dark:text-gray-400 italic text-xs">
+                            {thuoc.ghi_chu}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="text-gray-500 dark:text-gray-400 italic mt-2">
+                    Chưa có thuốc trong toa
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 2 nút dọc bên phải: Xem trước và In toa thuốc */}
+      <div className="absolute right-0 top-0 flex flex-col space-y-2">
+        <button
+          onClick={handlePreview}
+          disabled={loading || disabled}
+          className={`
+            transition-all duration-300 ease-in-out flex items-center justify-center 
+            text-white text-sm font-medium shadow-lg
+            bg-green-500 hover:bg-green-600
+            ${loading || disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
+          `}
+          style={{
+            height: "60px",
+            width: "24px",
+            writingMode: "vertical-rl",
+            textOrientation: "mixed",
+            borderRadius: "4px 0 0 4px",
+          }}
+        >
+          {loading ? "…" : <Eye size={16} />}
+        </button>
+
+        <button
+          onClick={handlePrint}
+          disabled={loading || disabled}
+          className={`
+            transition-all duration-300 ease-in-out flex items-center justify-center 
+            text-white text-sm font-medium shadow-lg
+            bg-blue-600 hover:bg-blue-700
+            ${loading || disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
+          `}
+          style={{
+            height: "60px",
+            width: "24px",
+            writingMode: "vertical-rl",
+            textOrientation: "mixed",
+            borderRadius: "4px 0 0 4px",
+          }}
+        >
+          {loading ? "…" : <Printer size={16} />}
+        </button>
+      </div>
+    </div>
+  );
+}

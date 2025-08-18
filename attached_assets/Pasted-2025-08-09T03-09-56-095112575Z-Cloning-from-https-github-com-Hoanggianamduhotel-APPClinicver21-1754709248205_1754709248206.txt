@@ -1,0 +1,46 @@
+2025-08-09T03:09:56.095112575Z ==> Cloning from https://github.com/Hoanggianamduhotel/APPClinicver21.7.2025
+2025-08-09T03:09:58.006470869Z ==> Checking out commit 198a24d2e02267222b1ca73226a6bab11cdd4b6a in branch main
+2025-08-09T03:10:00.124038478Z ==> Using Node.js version 18.20.4 via /opt/render/project/src/.nvmrc
+2025-08-09T03:10:00.153606471Z ==> Node.js version 18.20.4 has reached end-of-life.
+2025-08-09T03:10:00.153627032Z ==> Upgrade to a maintained version to receive important security updates.
+2025-08-09T03:10:00.153631212Z ==> Information on maintained Node.js versions: https://nodejs.org/en/about/previous-releases
+2025-08-09T03:10:00.153636222Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2025-08-09T03:10:01.72009186Z ==> Running build command 'npm install; npm run build'...
+2025-08-09T03:10:21.920458039Z 
+2025-08-09T03:10:21.92048968Z added 852 packages, and audited 853 packages in 20s
+2025-08-09T03:10:21.92050323Z 
+2025-08-09T03:10:21.92050933Z 132 packages are looking for funding
+2025-08-09T03:10:21.920531941Z   run `npm fund` for details
+2025-08-09T03:10:21.957045794Z 
+2025-08-09T03:10:21.957067014Z 13 vulnerabilities (3 low, 8 moderate, 2 high)
+2025-08-09T03:10:21.957071445Z 
+2025-08-09T03:10:21.957076105Z To address issues that do not require attention, run:
+2025-08-09T03:10:21.957080155Z   npm audit fix
+2025-08-09T03:10:21.957084135Z 
+2025-08-09T03:10:21.957088585Z To address all issues (including breaking changes), run:
+2025-08-09T03:10:21.957092635Z   npm audit fix --force
+2025-08-09T03:10:21.957096355Z 
+2025-08-09T03:10:21.957100775Z Run `npm audit` for details.
+2025-08-09T03:10:22.148255781Z 
+2025-08-09T03:10:22.148282542Z > rest-express@1.0.0 build
+2025-08-09T03:10:22.148288322Z > vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+2025-08-09T03:10:22.148294242Z 
+2025-08-09T03:10:22.419232208Z vite v5.4.14 building for production...
+2025-08-09T03:10:22.476733733Z transforming...
+2025-08-09T03:10:22.495069217Z node:internal/process/promises:288
+2025-08-09T03:10:22.495092137Z             triggerUncaughtException(err, true /* fromPromise */);
+2025-08-09T03:10:22.495097617Z             ^
+2025-08-09T03:10:22.495101657Z 
+2025-08-09T03:10:22.495107387Z [Failed to load PostCSS config: Failed to load PostCSS config (searchPath: /opt/render/project/src/client): [ReferenceError] module is not defined in ES module scope
+2025-08-09T03:10:22.495115498Z This file is being treated as an ES module because it has a '.js' file extension and '/opt/render/project/src/package.json' contains "type": "module". To treat it as a CommonJS script, rename it to use the '.cjs' file extension.
+2025-08-09T03:10:22.495120548Z ReferenceError: module is not defined in ES module scope
+2025-08-09T03:10:22.495124928Z This file is being treated as an ES module because it has a '.js' file extension and '/opt/render/project/src/package.json' contains "type": "module". To treat it as a CommonJS script, rename it to use the '.cjs' file extension.
+2025-08-09T03:10:22.495129508Z     at file:///opt/render/project/src/postcss.config.js:1:1
+2025-08-09T03:10:22.495133368Z     at ModuleJob.run (node:internal/modules/esm/module_job:195:25)
+2025-08-09T03:10:22.495136218Z     at async ModuleLoader.import (node:internal/modules/esm/loader:337:24)
+2025-08-09T03:10:22.495139398Z     at async importDefault (file:///opt/render/project/src/node_modules/vite/dist/node/chunks/dep-CHZK6zbr.js:33759:18)
+2025-08-09T03:10:22.495142139Z     at async Object.search (file:///opt/render/project/src/node_modules/vite/dist/node/chunks/dep-CHZK6zbr.js:25915:23)]
+2025-08-09T03:10:22.495144799Z 
+2025-08-09T03:10:22.495147508Z Node.js v18.20.4
+2025-08-09T03:10:22.508842132Z ==> Build failed 😞
+2025-08-09T03:10:22.508880303Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys

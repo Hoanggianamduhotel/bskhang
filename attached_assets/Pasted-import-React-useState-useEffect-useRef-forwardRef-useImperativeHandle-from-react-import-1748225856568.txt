@@ -1,0 +1,283 @@
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import {
+  Box,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  IconButton,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from '@mui/material';
+import { Trash2, Plus, Search } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
+import { useToast } from '@/hooks/use-toast';
+
+interface Thuoc {
+  id: string;
+  ten_thuoc: string;
+  don_vi: string;
+  duong_dung: string;
+  gia_ban: number;
+  so_luong_ton: number;
+}
+
+interface ToaThuocRow {
+  id: number;
+  thuoc_id: string;
+  ten_thuoc: string;
+  don_vi: string;
+  duong_dung: string;
+  so_lan_dung: number;
+  so_luong_moi_lan: number;
+  tong_so_luong: number;
+  ghi_chu: string;
+  searchTerm?: string;
+}
+
+interface ToaThuocDoctorProps {
+  khambenhID: string;
+}
+
+const ToaThuocDoctor = forwardRef(({ khambenhID }: ToaThuocDoctorProps, ref) => {
+  const [thuocList, setThuocList] = useState<Thuoc[]>([]);
+  const [toaThuocList, setToaThuocList] = useState<ToaThuocRow[]>([{ id: 0, thuoc_id: '', ten_thuoc: '', don_vi: '', duong_dung: '', so_lan_dung: 1, so_luong_moi_lan: 1, tong_so_luong: 1, ghi_chu: '', searchTerm: '' }]);
+  const [currentSearchRowId, setCurrentSearchRowId] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [soNgayToa, setSoNgayToa] = useState<number>(3);
+  const [ngayHen, setNgayHen] = useState<string>('');
+  const { toast } = useToast();
+  const idCounter = useRef(1);
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      // focus first search
+      setTimeout(() => {
+        const input = document.querySelector('input[data-field="search_thuoc"]') as HTMLInputElement;
+        input?.focus();
+      }, 100);
+    }
+  }));
+
+  useEffect(() => {
+    // fetch on searchTerm change
+    if (currentSearchRowId === null) return;
+    const currentRow = toaThuocList.find(r => r.id === currentSearchRowId);
+    const term = currentRow?.searchTerm || '';
+    if (!term.trim()) { setThuocList([]); return; }
+    setIsLoading(true);
+    const timer = setTimeout(async () => {
+      const { data, error } = await supabase
+        .from('thuoc')
+        .select('id, ten_thuoc, don_vi, duong_dung, gia_ban, so_luong_ton')
+        .ilike('ten_thuoc', `%${term}%`)
+        .limit(20);
+      if (error) {
+        toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
+        setThuocList([]);
+      } else {
+        setThuocList(data || []);
+      }
+      setIsLoading(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [toaThuocList, currentSearchRowId, toast]);
+
+  useEffect(() => {
+    setToaThuocList(prev => prev.map(r => ({ ...r, tong_so_luong: soNgayToa * r.so_lan_dung * r.so_luong_moi_lan })));
+  }, [soNgayToa]);
+
+  const handleUpdateRow = (id: number, field: string, value: any) => {
+    setToaThuocList(prev => {
+      const updated = prev.map(r => {
+        if (r.id !== id) return r;
+        const row = { ...r, [field]: value } as ToaThuocRow;
+        if (field === 'thuoc_id') {
+          const sel = thuocList.find(t => t.id === value);
+          if (sel) {
+            row.ten_thuoc = sel.ten_thuoc;
+            row.don_vi = sel.don_vi;
+            row.duong_dung = sel.duong_dung;
+          }
+        }
+        if (['so_lan_dung','so_luong_moi_lan'].includes(field)) {
+          row.tong_so_luong = soNgayToa * row.so_lan_dung * row.so_luong_moi_lan;
+        }
+        return row;
+      });
+      // auto-add row
+      const last = updated[updated.length-1];
+      if (last.thuoc_id && updated.filter(r=>!r.thuoc_id).length===0) {
+        updated.push({ id: idCounter.current++, thuoc_id:'', ten_thuoc:'', don_vi:'', duong_dung:'', so_lan_dung:1, so_luong_moi_lan:1, tong_so_luong: soNgayToa, ghi_chu:'', searchTerm:'' });
+      }
+      return updated;
+    });
+  };
+
+  const handleSelectThuoc = (rowId: number, t: Thuoc) => {
+    handleUpdateRow(rowId, 'thuoc_id', t.id);
+    handleUpdateRow(rowId, 'searchTerm', '');
+    setOpenDialog(false);
+    setCurrentSearchRowId(null);
+  };
+
+  const handleSave = async () => {
+    const toInsert = toaThuocList.filter(r=>r.thuoc_id).map(r=>({ khambenh_id: khambenhID, thuoc_id: r.thuoc_id, so_lan_dung: r.so_lan_dung, so_luong_moi_lan: r.so_luong_moi_lan, tong_so_luong: r.tong_so_luong, ghi_chu: r.ghi_chu }));
+    if (!toInsert.length) {
+      toast({ title:'Lỗi', description:'Chưa có thuốc để lưu', variant:'destructive' });
+      return;
+    }
+    const { error } = await supabase.from('toathuoc').insert(toInsert);
+    if (error) {
+      toast({ title:'Lỗi', description:error.message, variant:'destructive' });
+    } else {
+      toast({ title:'Thành công', description:'Lưu toa thuốc thành công' });
+      setToaThuocList([{ id:0, thuoc_id:'', ten_thuoc:'', don_vi:'', duong_dung:'', so_lan_dung:1, so_luong_moi_lan:1, tong_so_luong:soNgayToa, ghi_chu:'', searchTerm:'' }]);
+      window.dispatchEvent(new CustomEvent('toaThuocUpdated'));
+    }
+  };
+
+  return (
+    <Box sx={{ p:2 }}>
+      <Box display="flex" gap={2} mb={2}>
+        <TextField label="Số ngày kê toa" type="number" value={soNgayToa}
+          onChange={e=>setSoNgayToa(Math.max(1,Math.min(30,+e.target.value)))}
+          InputProps={{ inputProps:{ min:1, max:30 } }}
+        />
+        <TextField label="Ngày hẹn tái khám" type="date" value={ngayHen}
+          onChange={e=>setNgayHen(e.target.value)}
+          InputLabelProps={{ shrink:true }}
+        />
+      </Box>
+
+      <TableContainer component={Paper} sx={{ mb:2 }}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Tên thuốc</TableCell>
+              <TableCell>Đơn vị</TableCell>
+              <TableCell>Số lần/ngày</TableCell>
+              <TableCell>SL mỗi lần</TableCell>
+              <TableCell>Dạng dùng</TableCell>
+              <TableCell>Tổng SL</TableCell>
+              <TableCell>Ghi chú</TableCell>
+              <TableCell>Thao tác</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {toaThuocList.map(row=>(
+              <TableRow key={row.id}>
+                <TableCell>
+                  {row.ten_thuoc ? (
+                    <Box display="flex" alignItems="center">
+                      <Box flexGrow={1}>
+                        <Typography fontWeight="medium">{row.ten_thuoc}</Typography>
+                        <Typography variant="body2" color="text.secondary">{row.duong_dung}</Typography>
+                      </Box>
+                      <IconButton size="small" onClick={()=>handleUpdateRow(row.id,'thuoc_id','')}>
+                        <Trash2 size={16}/>
+                      </IconButton>
+                    </Box>
+                  ) : (
+                    <TextField
+                      placeholder="Gõ tên thuốc..."
+                      value={row.searchTerm||''}
+                      onChange={e=>{
+                        handleUpdateRow(row.id,'searchTerm',e.target.value);
+                        setCurrentSearchRowId(row.id);
+                        setOpenDialog(true);
+                      }}
+                      InputProps={{
+                        startAdornment: <Search size={16} style={{ marginRight: 8 }} />
+                      }}
+                      fullWidth
+                      inputProps={{ 'data-field':'search_thuoc' }}
+                    />
+                  )}
+
+                  <Dialog
+                    open={openDialog && currentSearchRowId===row.id}
+                    onClose={()=>setOpenDialog(false)}
+                    fullWidth maxWidth="sm"
+                  >
+                    <DialogTitle>Chọn thuốc</DialogTitle>
+                    <DialogContent dividers>
+                      {isLoading ? (
+                        <Typography textAlign="center">Đang tìm kiếm...</Typography>
+                      ) : thuocList.length ? (
+                        thuocList.map(t=>(
+                          <Box key={t.id} sx={{ p:1, cursor:'pointer', '&:hover':{ backgroundColor:'action.hover'} }}
+                            onClick={()=>handleSelectThuoc(row.id,t)}
+                          >
+                            <Typography fontWeight="bold">{t.ten_thuoc}</Typography>
+                            <Typography variant="body2">ĐV: {t.don_vi} — Tồn: {t.so_luong_ton}</Typography>
+                          </Box>
+                        ))
+                      ) : (
+                        <Typography textAlign="center">Không tìm thấy thuốc nào</Typography>
+                      )}
+                    </DialogContent>
+                  </Dialog>
+                </TableCell>
+                <TableCell>{row.don_vi}</TableCell>
+                <TableCell>
+                  <TextField
+                    type="number"
+                    value={row.so_lan_dung}
+                    onChange={e=>handleUpdateRow(row.id,'so_lan_dung',+e.target.value)}
+                    inputProps={{ min:1 }}
+                    sx={{ width:80 }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <TextField
+                    type="number"
+                    value={row.so_luong_moi_lan}
+                    onChange={e=>handleUpdateRow(row.id,'so_luong_moi_lan',+e.target.value)}
+                    inputProps={{ min:1 }}
+                    sx={{ width:80 }}
+                  />
+                </TableCell>
+                <TableCell><Typography>{row.duong_dung}</Typography></TableCell>
+                <TableCell><Typography fontWeight="medium">{row.tong_so_luong}</Typography></TableCell>
+                <TableCell>
+                  <TextField
+                    value={row.ghi_chu}
+                    onChange={e=>handleUpdateRow(row.id,'ghi_chu',e.target.value)}
+                    placeholder="Ghi chú..."
+                    fullWidth
+                  />
+                </TableCell>
+                <TableCell>
+                  <IconButton onClick={()=>handleUpdateRow(row.id,'thuoc_id','')}>
+                    <Trash2 size={16} color="error" />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <Box display="flex" gap={2}>
+        <Button variant="outlined" startIcon={<Plus size={16} />} onClick={()=>handleUpdateRow(idCounter.current,'',null)}>
+          Thêm dòng
+        </Button>
+        <Button variant="contained" color="success" onClick={handleSave} startIcon={<SaveIcon /> || null}>
+          Lưu toa thuốc
+        </Button>
+        <Button variant="outlined">In toa</Button>
+      </Box>
+    </Box>
+  );
+});
+
+export default ToaThuocDoctor;

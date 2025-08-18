@@ -1,0 +1,78 @@
+// src/components/DanhSachTaiKhamHomNay.tsx
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+
+interface KhamBenh {
+  id: string;
+  benhnhan_id: string;
+  ngay_kham: string;
+  trieu_chung: string;
+  chan_doan: string;
+  so_ngay_toa: number;
+  status: string;
+  ngay_hen_tai_kham: string;
+  created_at: string;
+}
+
+export default function DanhSachTaiKhamHomNay() {
+  const [data, setData] = useState<KhamBenh[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const today = new Date().toISOString().split('T')[0]; // '2025-08-02'
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('khambenh')
+        .select(`
+          id,
+          benhnhan_id,
+          ngay_kham,
+          trieu_chung,
+          chan_doan,
+          so_ngay_toa,
+          status,
+          ngay_hen_tai_kham,
+          created_at
+        `)
+        .eq('ngay_hen_tai_kham', today);
+
+      if (error) {
+        console.error('Lỗi truy vấn Supabase:', error);
+        setData([]);
+      } else {
+        setData(data || []);
+      }
+      setLoading(false);
+    };
+
+    fetchData();
+  }, []);
+
+  return (
+    <div className="p-4">
+      <h2 className="text-lg font-semibold mb-3">📋 Danh sách hẹn tái khám hôm nay</h2>
+      {loading ? (
+        <p>⏳ Đang tải dữ liệu...</p>
+      ) : data.length === 0 ? (
+        <p>✅ Không có bệnh nhân hẹn tái khám hôm nay.</p>
+      ) : (
+        <div className="space-y-3">
+          {data.map((item) => (
+            <div
+              key={item.id}
+              className="border rounded-md p-3 shadow-sm bg-white text-sm"
+            >
+              <div><strong>🗓 Ngày khám:</strong> {item.ngay_kham}</div>
+              <div><strong>📝 Triệu chứng:</strong> {item.trieu_chung || '(trống)'}</div>
+              <div><strong>🔍 Chẩn đoán:</strong> {item.chan_doan || '(chưa có)'}</div>
+              <div><strong>💊 Số ngày toa:</strong> {item.so_ngay_toa ?? '(---)'}</div>
+              <div><strong>📌 Trạng thái:</strong> {item.status || '(---)'}</div>
+              <div><strong>📅 Hẹn tái khám:</strong> {item.ngay_hen_tai_kham}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

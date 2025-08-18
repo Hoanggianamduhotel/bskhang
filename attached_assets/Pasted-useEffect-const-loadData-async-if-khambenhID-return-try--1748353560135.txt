@@ -1,0 +1,124 @@
+useEffect(() => {
+  const loadData = async () => {
+    if (!khambenhID) return;
+
+    try {
+      // 1. Lấy ngay_hen_tai_kham từ khambenh
+      const { data: khamData, error: khamError } = await supabase
+        .from('khambenh')
+        .select('ngay_hen_tai_kham')
+        .eq('id', khambenhID)
+        .single();
+
+      if (!khamError && khamData) {
+        setNgayHen(khamData.ngay_hen_tai_kham || '');
+      } else {
+        console.error('Lỗi load ngày hẹn tái khám:', khamError);
+        setNgayHen('');
+      }
+
+      // 2. Load toa thuốc hiện có
+      const { data: toaThuocData, error: toaError } = await supabase
+        .from('toathuoc')
+        .select(`
+          id,
+          thuoc_id,
+          so_lan_dung,
+          so_luong_moi_lan,
+          tong_so_luong,
+          ghi_chu,
+          thuoc:thuoc_id (
+            id,
+            ten_thuoc,
+            don_vi,
+            duong_dung
+          )
+        `)
+        .eq('khambenh_id', khambenhID);
+
+      if (toaError) {
+        console.error('Lỗi load toa thuốc:', toaError);
+        setToaThuocList([{
+          id: 0,
+          thuoc_id: '',
+          ten_thuoc: '',
+          don_vi: '',
+          duong_dung: '',
+          so_lan_dung: 0,
+          so_luong_moi_lan: 0,
+          tong_so_luong: 0,
+          manual_tong_so_luong: false,
+          ghi_chu: '',
+          searchTerm: ''
+        }]);
+        return;
+      }
+
+      if (toaThuocData && toaThuocData.length > 0) {
+        const convertedData = toaThuocData.map((item: any, index: number) => ({
+          id: index,
+          thuoc_id: item.thuoc_id,
+          ten_thuoc: (item.thuoc as any)?.ten_thuoc || '',
+          don_vi: (item.thuoc as any)?.don_vi || '',
+          duong_dung: (item.thuoc as any)?.duong_dung || '',
+          so_lan_dung: item.so_lan_dung,
+          so_luong_moi_lan: item.so_luong_moi_lan,
+          tong_so_luong: item.tong_so_luong,
+          manual_tong_so_luong: true,
+          ghi_chu: item.ghi_chu || '',
+          searchTerm: ''
+        }));
+        convertedData.push({
+          id: convertedData.length,
+          thuoc_id: '',
+          ten_thuoc: '',
+          don_vi: '',
+          duong_dung: '',
+          so_lan_dung: 0,
+          so_luong_moi_lan: 0,
+          tong_so_luong: 0,
+          manual_tong_so_luong: false,
+          ghi_chu: '',
+          searchTerm: ''
+        });
+        setToaThuocList(convertedData);
+        idCounter.current = convertedData.length;
+      } else {
+        // Nếu không có toa thuốc cũ, reset form
+        setToaThuocList([{
+          id: 0,
+          thuoc_id: '',
+          ten_thuoc: '',
+          don_vi: '',
+          duong_dung: '',
+          so_lan_dung: 0,
+          so_luong_moi_lan: 0,
+          tong_so_luong: 0,
+          manual_tong_so_luong: false,
+          ghi_chu: '',
+          searchTerm: ''
+        }]);
+      }
+
+    } catch (error) {
+      console.error('Lỗi load dữ liệu toa thuốc và ngày hẹn:', error);
+      setNgayHen('');
+      setToaThuocList([{
+        id: 0,
+        thuoc_id: '',
+        ten_thuoc: '',
+        don_vi: '',
+        duong_dung: '',
+        so_lan_dung: 0,
+        so_luong_moi_lan: 0,
+        tong_so_luong: 0,
+        manual_tong_so_luong: false,
+        ghi_chu: '',
+        searchTerm: ''
+      }]);
+    }
+  };
+
+  loadData();
+
+}, [khambenhID]);

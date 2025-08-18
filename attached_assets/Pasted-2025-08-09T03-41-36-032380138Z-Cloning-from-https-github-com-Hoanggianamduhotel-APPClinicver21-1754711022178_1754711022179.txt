@@ -1,0 +1,46 @@
+2025-08-09T03:41:36.032380138Z ==> Cloning from https://github.com/Hoanggianamduhotel/APPClinicver21.7.2025
+2025-08-09T03:41:37.568473371Z ==> Checking out commit 2e663b9a276a4f18d79cf12405b42acc5087b03b in branch main
+2025-08-09T03:42:04.744195101Z ==> Using Node.js version 18.20.4 via /opt/render/project/src/.nvmrc
+2025-08-09T03:42:04.769597212Z ==> Node.js version 18.20.4 has reached end-of-life.
+2025-08-09T03:42:04.769627283Z ==> Upgrade to a maintained version to receive important security updates.
+2025-08-09T03:42:04.769693414Z ==> Information on maintained Node.js versions: https://nodejs.org/en/about/previous-releases
+2025-08-09T03:42:04.769703065Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2025-08-09T03:42:06.440729716Z ==> Running build command 'npm install; npm run build'...
+2025-08-09T03:42:24.632594214Z 
+2025-08-09T03:42:24.632626675Z added 438 packages, and audited 439 packages in 18s
+2025-08-09T03:42:24.632671986Z 
+2025-08-09T03:42:24.632685767Z 154 packages are looking for funding
+2025-08-09T03:42:24.632693667Z   run `npm fund` for details
+2025-08-09T03:42:24.634355058Z 
+2025-08-09T03:42:24.634362958Z 1 low severity vulnerability
+2025-08-09T03:42:24.634365788Z 
+2025-08-09T03:42:24.634368828Z To address all issues, run:
+2025-08-09T03:42:24.634371698Z   npm audit fix
+2025-08-09T03:42:24.634374418Z 
+2025-08-09T03:42:24.634377488Z Run `npm audit` for details.
+2025-08-09T03:42:24.839680741Z 
+2025-08-09T03:42:24.842632563Z > medical-clinic-nextjs@1.0.0 build
+2025-08-09T03:42:24.842639574Z > next build
+2025-08-09T03:42:24.842644974Z 
+2025-08-09T03:42:25.596060154Z (node:127) Warning: To load an ES module, set "type": "module" in the package.json or use the .mjs extension.
+2025-08-09T03:42:25.596080565Z (Use `node --trace-warnings ...` to show where the warning was created)
+2025-08-09T03:42:25.596241019Z  ⨯ Failed to load next.config.js, see more info here https://nextjs.org/docs/messages/next-config-error
+2025-08-09T03:42:25.626040565Z 
+2025-08-09T03:42:25.695181123Z > Build error occurred
+2025-08-09T03:42:25.695201983Z /opt/render/project/src/next.config.js:19
+2025-08-09T03:42:25.695212164Z export default nextConfig
+2025-08-09T03:42:25.695215574Z ^^^^^^
+2025-08-09T03:42:25.695218444Z 
+2025-08-09T03:42:25.695221404Z SyntaxError: Unexpected token 'export'
+2025-08-09T03:42:25.695224864Z     at internalCompileFunction (node:internal/vm:76:18)
+2025-08-09T03:42:25.695227664Z     at wrapSafe (node:internal/modules/cjs/loader:1283:20)
+2025-08-09T03:42:25.695231064Z     at Module._compile (node:internal/modules/cjs/loader:1328:27)
+2025-08-09T03:42:25.695234544Z     at Module._extensions..js (node:internal/modules/cjs/loader:1422:10)
+2025-08-09T03:42:25.695237414Z     at Module.load (node:internal/modules/cjs/loader:1203:32)
+2025-08-09T03:42:25.695241524Z     at Module._load (node:internal/modules/cjs/loader:1019:12)
+2025-08-09T03:42:25.695246444Z     at ModuleWrap.<anonymous> (node:internal/modules/esm/translators:203:29)
+2025-08-09T03:42:25.695250944Z     at ModuleJob.run (node:internal/modules/esm/module_job:195:25)
+2025-08-09T03:42:25.695255825Z     at async ModuleLoader.import (node:internal/modules/esm/loader:337:24)
+2025-08-09T03:42:25.695260535Z     at async importModuleDynamicallyWrapper (node:internal/vm/module:432:15)
+2025-08-09T03:42:25.696855614Z ==> Build failed 😞
+2025-08-09T03:42:25.696874495Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys

@@ -1,0 +1,38 @@
+[15:08:48.491] Running build in Washington, D.C., USA (East) – iad1
+[15:08:48.492] Build machine configuration: 2 cores, 8 GB
+[15:08:48.506] Cloning github.com/Hoanggianamduhotel/APPClinicver21.7.2025 (Branch: main, Commit: da4eb45)
+[15:08:48.635] Previous build caches not available
+[15:08:48.962] Cloning completed: 456.000ms
+[15:08:50.757] Running "vercel build"
+[15:08:51.243] Vercel CLI 44.4.3
+[15:08:51.897] > Installing Builder: @vercel/node@3.0.7
+[15:09:02.416] Installing dependencies...
+[15:09:07.800] npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.is
+[15:09:07.801] npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.is
+[15:09:14.812] 
+[15:09:14.813] added 629 packages in 12s
+[15:09:14.814] 
+[15:09:14.814] 83 packages are looking for funding
+[15:09:14.814]   run `npm fund` for details
+[15:09:15.137] [36mvite v5.4.14 [32mbuilding for production...[36m[39m
+[15:09:15.185] transforming...
+[15:09:15.473] Browserslist: browsers data (caniuse-lite) is 9 months old. Please run:
+[15:09:15.473]   npx update-browserslist-db@latest
+[15:09:15.473]   Why you should do it regularly: https://github.com/browserslist/update-db#readme
+[15:09:23.338] [32m✓[39m 2711 modules transformed.
+[15:09:23.664] rendering chunks...
+[15:09:23.984] computing gzip size...
+[15:09:24.010] [2m../dist/public/[22m[32mindex.html                  [39m[1m[2m  0.63 kB[22m[1m[22m[2m │ gzip:   0.38 kB[22m
+[15:09:24.011] [2m../dist/public/[22m[2massets/[22m[35mindex-BzxV1dWT.css   [39m[1m[2m 86.32 kB[22m[1m[22m[2m │ gzip:  14.34 kB[22m
+[15:09:24.011] [2m../dist/public/[22m[2massets/[22m[36mbrowser-CJ0OqOGL.js  [39m[1m[2m  0.30 kB[22m[1m[22m[2m │ gzip:   0.25 kB[22m
+[15:09:24.011] [2m../dist/public/[22m[2massets/[22m[36mindex-Fiq5U4NF.js    [39m[1m[33m875.87 kB[39m[22m[2m │ gzip: 265.86 kB[22m
+[15:09:24.012] [33m
+[15:09:24.012] (!) Some chunks are larger than 500 kB after minification. Consider:
+[15:09:24.012] - Using dynamic import() to code-split the application
+[15:09:24.012] - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+[15:09:24.013] - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+[15:09:24.013] [32m✓ built in 8.85s[39m
+[15:09:24.081] Error: Found invalid Node.js Version: "22.x". Please set Node.js Version to 18.x in your Project Settings to use Node.js 18.
+[15:09:24.081] Learn More: http://vercel.link/node-version
+[15:09:24.364] 
+[15:09:26.869] Exiting build container

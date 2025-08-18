@@ -1,0 +1,136 @@
+import React, {
+  useState,
+  useImperativeHandle,
+  forwardRef,
+} from "react";
+import { Button } from "@/components/ui/button";
+import { Printer, Eye } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabaseClient";
+
+interface PatientInfoType {
+  ho_ten?: string;
+  ngay_sinh?: string;
+  thang_tuoi?: number;
+  can_nang?: string;
+  dia_chi?: string;
+  so_dien_thoai?: string;
+}
+
+interface InToaThuocProps {
+  khambenhID: string;
+  disabled?: boolean;
+  patientInfo?: PatientInfoType | null;
+}
+
+interface ToaThuocData {
+  tenBenhNhan: string;
+  chanDoan: string;
+  ngayKham: string;
+  tenBacSi: string;
+  ngayTaiKham?: string;
+  ngaySinh?: string;
+  thangTuoi?: number;
+  canNang?: string;
+  diaChi?: string;
+  soDienThoai?: string;
+  danhSachThuoc: {
+    ten_thuoc: string;
+    don_vi: string;
+    so_lan_dung: number;
+    so_luong_moi_lan: number;
+    tong_so_luong: number;
+    ghi_chu?: string;
+  }[];
+}
+
+export interface InToaThuocRef {
+  handlePreview: () => void;
+  handlePrint: () => void;
+}
+
+const InToaThuoc = forwardRef<InToaThuocRef, InToaThuocProps>(
+  ({ khambenhID, disabled = false, patientInfo }, ref) => {
+    const [loading, setLoading] = useState(false);
+    const [showPreview, setShowPreview] = useState(false);
+    const [toaThuocData, setToaThuocData] = useState<ToaThuocData | null>(null);
+    const { toast } = useToast();
+
+    // =============================
+    // -- Hàm fetchToaThuocData, handlePreview, handlePrint ...
+    // -- (bạn giữ nguyên logic lấy dữ liệu và in)
+    // =============================
+
+    useImperativeHandle(ref, () => ({
+      handlePreview,
+      handlePrint,
+    }));
+
+    if (!khambenhID) return null;
+
+    return (
+      <div className="relative">
+        {/* ====================================== */}
+        {/* Vùng preview + lịch sử toa thuốc */}
+        <div className="space-y-4 pr-8">
+          {showPreview && toaThuocData && (
+            <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border">
+              {/* … phần nội dung preview … */}
+            </div>
+          )}
+        </div>
+
+        {/* ====================================== */}
+        {/* Khung trắng gói gọn đúng hai nút */}
+        <div className="absolute right-0 bottom-0 bg-white w-14 p-1 rounded-l-lg shadow-lg">
+          <div className="flex flex-col space-y-2">
+            <button
+              onClick={handlePreview}
+              disabled={disabled} // Bỏ loading logic, chỉ disable khi disabled === true
+              className={`
+                transition-all duration-200 ease-in-out flex items-center justify-center
+                bg-green-500 hover:bg-green-600 active:bg-green-700
+                text-white text-sm font-medium
+                rounded-md
+                h-12 w-12
+                ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:scale-105"}
+              `}
+              style={{
+                writingMode: "vertical-rl",
+                textOrientation: "mixed",
+              }}
+              title="Xem trước toa thuốc"
+            >
+              {/* Chỉ hiển thị icon Eye, bỏ spinner */}
+              <Eye size={20} />
+            </button>
+
+            <button
+              onClick={handlePrint}
+              disabled={disabled} // Bỏ loading logic, chỉ disable khi disabled === true
+              className={`
+                transition-all duration-200 ease-in-out flex items-center justify-center
+                bg-blue-600 hover:bg-blue-700 active:bg-blue-800
+                text-white text-sm font-medium
+                rounded-md
+                h-12 w-12
+                ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:scale-105"}
+              `}
+              style={{
+                writingMode: "vertical-rl",
+                textOrientation: "mixed",
+              }}
+              title="In toa thuốc"
+            >
+              <Printer size={20} />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+);
+
+InToaThuoc.displayName = "InToaThuoc";
+
+export default InToaThuoc;

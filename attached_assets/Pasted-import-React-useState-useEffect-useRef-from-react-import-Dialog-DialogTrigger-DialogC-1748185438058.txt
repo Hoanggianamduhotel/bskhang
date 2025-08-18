@@ -1,0 +1,332 @@
+import React, { useState, useEffect, useRef } from "react";
+import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabaseClient";
+
+interface Patient {
+  id: number;
+  ho_ten: string;
+  ngay_sinh: string;
+  can_nang?: string;
+  dia_chi?: string;
+  sdt?: string;
+}
+
+interface PatientFormDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+const PatientFormDialog: React.FC<PatientFormDialogProps> = ({ open, onOpenChange }) => {
+  // Các bước nhập liệu
+  type Step = 'ho_ten' | 'ngay_sinh' | 'xac_nhan' | 'nhap_chi_tiet';
+
+  const [step, setStep] = useState<Step>('ho_ten');
+  const [loading, setLoading] = useState(false);
+
+  // Form data hiện tại
+  const [formData, setFormData] = useState({
+    ho_ten: '',
+    ngay_sinh: '',
+    can_nang: '',
+    dia_chi: '',
+    sdt: '',
+  });
+
+  // Dữ liệu bệnh nhân đã tồn tại (nếu có)
+  const [existingPatient, setExistingPatient] = useState<Patient | null>(null);
+
+  // Lựa chọn dùng dữ liệu cũ hay tạo mới
+  const [useOldData, setUseOldData] = useState<boolean | null>(null);
+
+  // Theo dõi các thay đổi so với dữ liệu cũ
+  const [changes, setChanges] = useState<Partial<typeof formData>>({});
+
+  // Ref để tập trung input
+  const hoTenInputRef = useRef<HTMLInputElement>(null);
+  const ngaySinhInputRef = useRef<HTMLInputElement>(null);
+  const canNangInputRef = useRef<HTMLInputElement>(null);
+
+  // Khi mở dialog reset lại state
+  useEffect(() => {
+    if(open) {
+      resetForm();
+      setStep('ho_ten');
+      setTimeout(() => {
+        hoTenInputRef.current?.focus();
+      }, 100);
+    }
+  }, [open]);
+
+  const resetForm = () => {
+    setFormData({
+      ho_ten: '',
+      ngay_sinh: '',
+      can_nang: '',
+      dia_chi: '',
+      sdt: '',
+    });
+    setExistingPatient(null);
+    setUseOldData(null);
+    setChanges({});
+    setLoading(false);
+  };
+
+  // Xử lý khi nhập input
+  const handleInputChange = (field: keyof typeof formData, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+
+    // Nếu có dữ liệu cũ, track thay đổi
+    if(existingPatient) {
+      if(value !== (existingPatient as any)[field]) {
+        setChanges(prev => ({ ...prev, [field]: value }));
+      } else {
+        setChanges(prev => {
+          const copy = { ...prev };
+          delete copy[field];
+          return copy;
+        });
+      }
+    }
+  };
+
+  // Bước nhập họ tên: Enter chuyển sang ngày sinh
+  const onHoTenKeyDown = (e: React.KeyboardEvent) => {
+    if(e.key === 'Enter') {
+      if(formData.ho_ten.trim() === '') {
+        alert('Vui lòng nhập họ tên');
+        return;
+      }
+      setStep('ngay_sinh');
+      setTimeout(() => {
+        ngaySinhInputRef.current?.focus();
+      }, 100);
+    }
+  };
+
+  // Bước nhập ngày sinh: Enter kiểm tra bệnh nhân tồn tại
+  const onNgaySinhKeyDown = async (e: React.KeyboardEvent) => {
+    if(e.key === 'Enter') {
+      if(formData.ngay_sinh.trim() === '') {
+        alert('Vui lòng nhập ngày sinh');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        // Query Supabase tìm bệnh nhân theo họ tên + ngày sinh
+        const { data, error } = await supabase
+          .from('benhnhan')
+          .select('*')
+          .eq('ho_ten', formData.ho_ten.trim())
+          .eq('ngay_sinh', formData.ngay_sinh.trim())
+          .limit(1)
+          .single();
+
+        if(error && error.code !== 'PGRST116') {
+          alert('Lỗi khi kiểm tra bệnh nhân: ' + error.message);
+          setLoading(false);
+          return;
+        }
+
+        if(data) {
+          setExistingPatient(data);
+          setUseOldData(null);
+          setStep('xac_nhan');
+        } else {
+          // Không tìm thấy bệnh nhân => nhập chi tiết mới
+          setExistingPatient(null);
+          setUseOldData(false);
+          setStep('nhap_chi_tiet');
+          setTimeout(() => {
+            canNangInputRef.current?.focus();
+          }, 100);
+        }
+      } catch(err) {
+        alert('Lỗi hệ thống, vui lòng thử lại.');
+      }
+      setLoading(false);
+    }
+  };
+
+  // Xác nhận dùng dữ liệu cũ hay tạo mới
+  const onUseOldData = (useOld: boolean) => {
+    setUseOldData(useOld);
+
+    if(useOld && existingPatient) {
+      // Load dữ liệu cũ vào form
+      setFormData({
+        ho_ten: existingPatient.ho_ten,
+        ngay_sinh: existingPatient.ngay_sinh,
+        can_nang: existingPatient.can_nang || '',
+        dia_chi: existingPatient.dia_chi || '',
+        sdt: existingPatient.sdt || '',
+      });
+    } else {
+      // Tạo mới, giữ họ tên + ngày sinh đã nhập, các trường còn lại để trống
+      setFormData({
+        ho_ten: formData.ho_ten,
+        ngay_sinh: formData.ngay_sinh,
+        can_nang: '',
+        dia_chi: '',
+        sdt: '',
+      });
+    }
+
+    setChanges({});
+    setStep('nhap_chi_tiet');
+    setTimeout(() => {
+      canNangInputRef.current?.focus();
+    }, 100);
+  };
+
+  // Lưu bệnh nhân lên Supabase
+  const onSave = async () => {
+    setLoading(true);
+    try {
+      if(useOldData && existingPatient) {
+        // Update bệnh nhân nếu có thay đổi
+        if(Object.keys(changes).length > 0) {
+          const { error } = await supabase
+            .from('benhnhan')
+            .update(changes)
+            .eq('id', existingPatient.id);
+          if(error) {
+            alert('Lỗi khi cập nhật bệnh nhân: ' + error.message);
+            setLoading(false);
+            return;
+          }
+        }
+      } else {
+        // Tạo bệnh nhân mới
+        const { error } = await supabase
+          .from('benhnhan')
+          .insert([formData]);
+        if(error) {
+          alert('Lỗi khi tạo bệnh nhân mới: ' + error.message);
+          setLoading(false);
+          return;
+        }
+      }
+
+      alert('Lưu bệnh nhân thành công!');
+      onOpenChange(false);
+      resetForm();
+    } catch (err) {
+      alert('Lỗi hệ thống, vui lòng thử lại.');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogTitle>Tiếp Nhận Bệnh Nhân</DialogTitle>
+
+        {step === 'ho_ten' && (
+          <div className="space-y-4 mt-4">
+            <label className="block font-medium">Họ tên</label>
+            <input
+              type="text"
+              ref={hoTenInputRef}
+              value={formData.ho_ten}
+              onChange={e => handleInputChange('ho_ten', e.target.value)}
+              onKeyDown={onHoTenKeyDown}
+              className="input input-bordered w-full"
+              placeholder="Nhập họ tên"
+            />
+            <small>Nhấn Enter để sang bước tiếp theo</small>
+          </div>
+        )}
+
+        {step === 'ngay_sinh' && (
+          <div className="space-y-4 mt-4">
+            <label className="block font-medium">Ngày sinh (dd/mm/yyyy)</label>
+            <input
+              type="text"
+              ref={ngaySinhInputRef}
+              value={formData.ngay_sinh}
+              onChange={e => handleInputChange('ngay_sinh', e.target.value)}
+              onKeyDown={onNgaySinhKeyDown}
+              className="input input-bordered w-full"
+              placeholder="Nhập ngày sinh"
+            />
+            <small>Nhấn Enter để kiểm tra bệnh nhân</small>
+          </div>
+        )}
+
+        {step === 'xac_nhan' && existingPatient && (
+          <div className="space-y-4 mt-4">
+            <p>Bệnh nhân đã tồn tại với ID: <strong>{existingPatient.id}</strong></p>
+            <p>Họ tên: <strong>{existingPatient.ho_ten}</strong></p>
+            <p>Ngày sinh: <strong>{existingPatient.ngay_sinh}</strong></p>
+            <p>Bạn có muốn:</p>
+            <div className="flex space-x-4">
+              <Button onClick={() => onUseOldData(true)}>Dùng dữ liệu cũ</Button>
+              <Button variant="outline" onClick={() => onUseOldData(false)}>Tạo mới</Button>
+            </div>
+          </div>
+        )}
+
+        {step === 'nhap_chi_tiet' && (
+          <div className="space-y-4 mt-4">
+            <label className="block font-medium">Cân nặng (kg)</label>
+            <input
+              type="text"
+              ref={canNangInputRef}
+              value={formData.can_nang}
+              onChange={e => handleInputChange('can_nang', e.target.value)}
+              placeholder={existingPatient?.can_nang ? `Giá trị cũ: ${existingPatient.can_nang}` : ''}
+              className="input input-bordered w-full"
+            />
+
+            <label className="block font-medium">Địa chỉ</label>
+            <input
+              type="text"
+              value={formData.dia_chi}
+              onChange={e => handleInputChange('dia_chi', e.target.value)}
+              placeholder={existingPatient?.dia_chi ? `Giá trị cũ: ${existingPatient.dia_chi}` : ''}
+              className="input input-bordered w-full"
+            />
+
+            <label className="block font-medium">Số điện thoại</label>
+            <input
+              type="text"
+              value={formData.sdt}
+              onChange={e => handleInputChange('sdt', e.target.value)}
+              placeholder={existingPatient?.sdt ? `Giá trị cũ: ${existingPatient.sdt}` : ''}
+              className="input input-bordered w-full"
+            />
+
+            {Object.keys(changes).length > 0 && (
+              <div className="mt-2 p-2 border border-gray-300 rounded">
+                <p className="font-semibold mb-1">Thay đổi đã nhập:</p>
+                <ul className="list-disc list-inside text-sm">
+                  {Object.entries(changes).map(([field, value]) => (
+                    <li key={field}>
+                      {field === 'can_nang' ? 'Cân nặng' : field === 'dia_chi' ? 'Địa chỉ' : field === 'sdt' ? 'Số điện thoại' : field}: {value}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        <DialogFooter className="mt-6 flex justify-end space-x-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>Hủy</Button>
+          {step === 'nhap_chi_tiet' && (
+            <Button onClick={onSave} disabled={loading}>
+              {loading ? 'Đang lưu...' : 'Lưu bệnh nhân'}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default PatientFormDialog;

@@ -1,0 +1,128 @@
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabaseClient";
+import { Textarea } from "@/components/ui/textarea";
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+}
+
+export default function DapUngDieuTriDialog({ open, onClose }: Props) {
+  const [searchName, setSearchName] = useState("");
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [selectedPatient, setSelectedPatient] = useState<any>(null);
+  const [ngayBatDau, setNgayBatDau] = useState("");
+  const [ngayTaiKham, setNgayTaiKham] = useState("");
+  const [toaThuoc, setToaThuoc] = useState<any>(null);
+  const [ketQua, setKetQua] = useState("");
+  const [phanUngPhu, setPhanUngPhu] = useState("");
+
+  useEffect(() => {
+    if (searchName.length >= 2) {
+      const fetchSuggestions = async () => {
+        const { data } = await supabase
+          .from("benhnhan")
+          .select("id, ho_ten, tuoi")
+          .ilike("ho_ten", `%${searchName}%`)
+          .limit(10);
+        setSuggestions(data || []);
+      };
+      fetchSuggestions();
+    } else {
+      setSuggestions([]);
+    }
+  }, [searchName]);
+
+  useEffect(() => {
+    if (selectedPatient) {
+      const fetchToa = async () => {
+        const { data } = await supabase
+          .from("toathuoc")
+          .select("id, khambenh_id, thuoc_chinh")
+          .eq("benhnhan_id", selectedPatient.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+        setToaThuoc(data);
+      };
+      fetchToa();
+    }
+  }, [selectedPatient]);
+
+  const handleLuu = async () => {
+    if (!selectedPatient || !toaThuoc || !ngayBatDau || !ngayTaiKham || !ketQua) return;
+
+    const { error } = await supabase.from("theodoi_dapung_dieutri").insert({
+      benhnhan_id: selectedPatient.id,
+      toa_id: toaThuoc.id,
+      thuoc: toaThuoc.thuoc_chinh,
+      ngay_bat_dau: ngayBatDau,
+      ngay_tai_kham: ngayTaiKham,
+      ket_qua: ketQua,
+      phan_ung_phu: phanUngPhu,
+    });
+
+    if (!error) {
+      onClose();
+      // reset form
+      setSearchName("");
+      setSelectedPatient(null);
+      setNgayBatDau("");
+      setNgayTaiKham("");
+      setToaThuoc(null);
+      setKetQua("");
+      setPhanUngPhu("");
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Theo dõi đáp ứng điều trị</DialogTitle>
+        </DialogHeader>
+
+        <Input
+          placeholder="Nhập tên bệnh nhân..."
+          value={searchName}
+          onChange={(e) => setSearchName(e.target.value)}
+        />
+        {suggestions.map((sug) => (
+          <div
+            key={sug.id}
+            className="cursor-pointer text-sm hover:bg-gray-100 px-2 py-1"
+            onClick={() => {
+              setSelectedPatient(sug);
+              setSuggestions([]);
+              setSearchName(sug.ho_ten);
+            }}
+          >
+            {sug.ho_ten} ({sug.tuoi} tuổi)
+          </div>
+        ))}
+
+        <div className="space-y-2 mt-4">
+          <Input type="date" value={ngayBatDau} onChange={(e) => setNgayBatDau(e.target.value)} placeholder="Ngày bắt đầu điều trị" />
+          <Input type="date" value={ngayTaiKham} onChange={(e) => setNgayTaiKham(e.target.value)} placeholder="Ngày tái khám" />
+          <Input
+            placeholder="Kết quả điều trị (khoi, cai thien, khong dap ung)"
+            value={ketQua}
+            onChange={(e) => setKetQua(e.target.value)}
+          />
+          <Textarea
+            placeholder="Phản ứng phụ (nếu có)"
+            value={phanUngPhu}
+            onChange={(e) => setPhanUngPhu(e.target.value)}
+          />
+        </div>
+
+        <Button onClick={handleLuu} className="mt-4 w-full">
+          Lưu theo dõi
+        </Button>
+      </DialogContent>
+    </Dialog>
+  );
+} 

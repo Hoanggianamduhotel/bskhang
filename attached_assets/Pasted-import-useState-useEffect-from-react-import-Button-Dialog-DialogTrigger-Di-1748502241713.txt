@@ -1,0 +1,175 @@
+import { useState, useEffect } from "react";
+import {
+  Button,
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
+import { Table, TableRow, TableCell, TableHeader, TableHead, TableBody } from "@/components/ui/table";
+import { supabase } from "@/lib/supabaseClient";
+
+// Kiểu dữ liệu cho lịch sử khám
+type VisitDate = string; // ISO string như "2025-04-03"
+
+export default function VisitHistoryReport() {
+  // 1. Danh sách ngày khám trong quá khứ (bạn fetch từ API hoặc props)
+  const [visitDates, setVisitDates] = useState<VisitDate[]>([]);
+
+  // 2. State cho chọn từ–tới
+  const [fromDate, setFromDate] = useState<VisitDate | null>(null);
+  const [toDate, setToDate] = useState<VisitDate | null>(null);
+
+  // 3. Dữ liệu báo cáo: { ten_thuoc: string; totalDays: number }
+  const [report, setReport] = useState<{ ten_thuoc: string; totalDays: number }[]>([]);
+
+  // Load visitDates khi mount
+  useEffect(() => {
+    async function loadVisitDates() {
+      const today = new Date().toISOString().slice(0, 10);
+      // Giả sử bạn lưu visits trong bảng khambenh với cột ngay_kham
+      const { data, error } = await supabase
+        .from("khambenh")
+        .select("ngay_kham")
+        .order("ngay_kham", { ascending: true });
+      if (data) {
+        // Lọc duy nhất, format ISO date
+        const unique = Array.from(new Set(data.map(d => d.ngay_kham.slice(0, 10))));
+        setVisitDates(unique);
+      }
+    }
+    loadVisitDates();
+  }, []);
+
+  // Khi chọn xong, load toa thuốc và tổng hợp
+  const generateReport = async () => {
+    if (!fromDate || !toDate) return;
+    // 1. Fetch tất cả toa trong khoảng
+    const { data: prescriptions } = await supabase
+      .from("toathuoc")
+      .select("thuoc_id, so_ngay_toa")
+      .gte("ngay_kham", fromDate)
+      .lte("ngay_kham", toDate)
+      .order("ngay_kham", { ascending: true });
+
+    if (!prescriptions) return;
+
+    // 2. Lấy danh sách thuốc details và lọc phan_loai = 'kháng sinh'
+    const ids = Array.from(new Set(prescriptions.map(p => p.thuoc_id)));
+    const { data: drugs } = await supabase
+      .from("thuoc")
+      .select("id, ten_thuoc, phan_loai")
+      .in("id", ids)
+      .eq("phan_loai", "kháng sinh");
+
+    if (!drugs) return;
+
+    // 3. Tạo map ten_thuoc → tổng ngày
+    const summary = new Map<string, number>();
+    prescriptions.forEach(p => {
+      const drug = drugs.find(d => d.id === p.thuoc_id);
+      if (drug) {
+        const prev = summary.get(drug.ten_thuoc) || 0;
+        summary.set(drug.ten_thuoc, prev + p.so_ngay_toa);
+      }
+    });
+
+    // 4. Chuyển về mảng để render
+    setReport(Array.from(summary.entries()).map(([ten_thuoc, totalDays]) => ({ ten_thuoc, totalDays })));
+  };
+
+  return (
+    <div>
+      {/* Nút mở Dialog chọn ngày */}
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button>Chọn khoảng ngày</Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Chọn Từ – Tới</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            {/* Từ ngày */}
+            <div>
+              <label className="block mb-1">Từ ngày</label>
+              <Select
+                value={fromDate || ""}
+                onValueChange={(v) => {
+                  setFromDate(v);
+                  // Nếu toDate < fromDate thì reset toDate
+                  if (toDate && v > toDate) setToDate(null);
+                }}
+              >
+                <SelectTrigger placeholder="Chọn từ ngày" />
+                <SelectContent>
+                  {visitDates.map(d => (
+                    <SelectItem key={d} value={d}>
+                      {new Date(d).toLocaleDateString("vi-VN")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Tới ngày */}
+            <div>
+              <label className="block mb-1">Tới ngày</label>
+              <Select
+                value={toDate || ""}
+                onValueChange={setToDate}
+                disabled={!fromDate}
+              >
+                <SelectTrigger placeholder="Chọn tới ngày" />
+                <SelectContent>
+                  {visitDates
+                    .filter(d => !fromDate || d >= fromDate)
+                    .map(d => (
+                      <SelectItem key={d} value={d}>
+                        {new Date(d).toLocaleDateString("vi-VN")}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                generateReport();
+              }}
+              disabled={!fromDate || !toDate}
+            >
+              Tạo báo cáo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hiển thị báo cáo */}
+      {report.length > 0 && (
+        <div className="mt-6">
+          <h3 className="text-lg font-semibold">Báo cáo kháng sinh</h3>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Tên thuốc</TableHead>
+                <TableHead>Số ngày KS</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {report.map((r) => (
+                <TableRow key={r.ten_thuoc}>
+                  <TableCell>{r.ten_thuoc}</TableCell>
+                  <TableCell>{r.totalDays}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+}

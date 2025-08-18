@@ -1,0 +1,157 @@
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Printer } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
+import { useSession } from "@supabase/auth-helpers-react";
+import { createClient } from "@/utils/supabase/client";
+
+interface InToaThuocProps {
+  khambenhID: number | null;
+  disabled?: boolean;
+}
+
+interface ToaThuocItem {
+  ten_thuoc: string;
+  so_luong: number;
+  don_vi: string;
+  lieu_dung: string;
+}
+
+interface KhamBenhInfo {
+  id: number;
+  chandoan: string;
+  bacsi: string;
+  ngaykham: string;
+  benhnhan: {
+    ho_ten: string;
+  };
+  toathuoc: ToaThuocItem[];
+}
+
+export default function InToaThuoc({ khambenhID, disabled }: InToaThuocProps) {
+  const [loading, setLoading] = useState(false);
+  const [toaThuocData, setToaThuocData] = useState<KhamBenhInfo | null>(null);
+  const session = useSession();
+  const supabase = createClient();
+
+  const fetchToaThuocData = async (): Promise<KhamBenhInfo> => {
+    const { data, error } = await supabase
+      .from("khambenh")
+      .select(
+        `
+        id,
+        chandoan,
+        bacsi,
+        ngaykham,
+        benhnhan ( ho_ten ),
+        toathuoc ( ten_thuoc, so_luong, don_vi, lieu_dung )
+        `
+      )
+      .eq("id", khambenhID)
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return data as KhamBenhInfo;
+  };
+
+  const handlePrint = async () => {
+    if (!khambenhID) return;
+
+    try {
+      setLoading(true);
+      const data = await fetchToaThuocData();
+      setToaThuocData(data);
+
+      const printWindow = window.open("", "_blank");
+      if (printWindow) {
+        printWindow.document.open();
+        printWindow.document.write(generatePrintHTML(data));
+        printWindow.document.close();
+        printWindow.focus();
+        printWindow.print();
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Lỗi khi in toa thuốc",
+        description: "Không thể lấy dữ liệu toa thuốc",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generatePrintHTML = (data: KhamBenhInfo) => {
+    const { benhnhan, chandoan, bacsi, ngaykham, toathuoc } = data;
+
+    return `
+      <html>
+        <head>
+          <title>Toa thuốc</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              padding: 20px;
+              font-size: 14px;
+            }
+            h2 {
+              text-align: center;
+              margin-bottom: 20px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 15px;
+            }
+            th, td {
+              border: 1px solid #ccc;
+              padding: 8px;
+              text-align: left;
+            }
+          </style>
+        </head>
+        <body>
+          <h2>TOA THUỐC</h2>
+          <p><strong>Họ tên bệnh nhân:</strong> ${benhnhan.ho_ten}</p>
+          <p><strong>Chẩn đoán:</strong> ${chandoan}</p>
+          <p><strong>Ngày khám:</strong> ${ngaykham}</p>
+          <p><strong>Bác sĩ:</strong> ${bacsi}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>STT</th>
+                <th>Tên thuốc</th>
+                <th>Liều dùng</th>
+                <th>Số lượng</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${toathuoc
+                .map(
+                  (item, index) => `
+                  <tr>
+                    <td>${index + 1}</td>
+                    <td>${item.ten_thuoc}</td>
+                    <td>${item.lieu_dung}</td>
+                    <td>${item.so_luong} ${item.don_vi}</td>
+                  </tr>
+                `
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    `;
+  };
+
+  return (
+    <Button onClick={handlePrint} disabled={disabled || loading}>
+      <Printer className="mr-2 h-4 w-4" />
+      In toa
+    </Button>
+  );
+}

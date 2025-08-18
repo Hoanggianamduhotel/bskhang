@@ -1,0 +1,195 @@
+import { useState } from "react";
+import { supabase } from "./supabaseClient";
+
+interface InToaThuocProps {
+  visitID: string;
+}
+
+interface Thuoc {
+  ten_thuoc: string;
+  so_lan_dung: number;
+  so_luong_moi_lan: number;
+  tong_so_luong: number;
+}
+
+interface ToaThuocPayload {
+  tenBenhNhan: string;
+  chanDoan: string;
+  ngayKham: string;
+  tenBacSi: string;
+  danhSachThuoc: Thuoc[];
+}
+
+const InToaThuoc = ({ visitID }: InToaThuocProps) => {
+  const [loading, setLoading] = useState(false);
+  const [toaThuoc, setToaThuoc] = useState<ToaThuocPayload | null>(null);
+
+  const fetchVisitData = async () => {
+    const { data: kham, error: errKham } = await supabase
+      .from("khambenh")
+      .select("*, benhnhan_id, bacsi_id")
+      .eq("id", visitID)
+      .single();
+    if (errKham || !kham) throw new Error("Không tìm thấy thông tin khám");
+    return kham;
+  };
+
+  const fetchPatientName = async (benhnhan_id: string) => {
+    const { data: benhnhan, error: errBN } = await supabase
+      .from("benhnhan")
+      .select("ho_ten")
+      .eq("id", benhnhan_id)
+      .single();
+    if (errBN || !benhnhan) throw new Error("Không tìm thấy bệnh nhân");
+    return benhnhan.ho_ten;
+  };
+
+  const fetchToaThuoc = async (khambenh_id: string) => {
+    const { data: toa, error: errToa } = await supabase
+      .from("toathuoc")
+      .select("thuoc_id, so_lan_dung, so_luong_moi_lan, tong_so_luong")
+      .eq("khambenh_id", khambenh_id);
+    if (errToa || !toa) throw new Error("Không có thuốc trong toa");
+    return toa;
+  };
+
+  const fetchDrugNames = async (thuocIDs: string[]) => {
+    const { data: danhSachThuoc, error: errThuoc } = await supabase
+      .from("thuoc")
+      .select("id, ten_thuoc")
+      .in("id", thuocIDs);
+    if (errThuoc || !danhSachThuoc) throw new Error("Lỗi lấy tên thuốc");
+    return danhSachThuoc;
+  };
+
+  const fetchDoctorName = async (bacsi_id: string) => {
+    const { data: bacsi, error: errBacSi } = await supabase
+      .from("profiles")
+      .select("ten_bac_si")
+      .eq("id", bacsi_id)
+      .single();
+    if (errBacSi || !bacsi) throw new Error("Không tìm thấy bác sĩ");
+    return bacsi.ten_bac_si;
+  };
+
+  const handleClickInToa = async () => {
+    setLoading(true);
+
+    try {
+      const kham = await fetchVisitData();
+      const benhnhanName = await fetchPatientName(kham.benhnhan_id);
+      const toa = await fetchToaThuoc(kham.id);
+      const thuocIDs = toa.map((t: any) => t.thuoc_id);
+      const danhSachThuoc = await fetchDrugNames(thuocIDs);
+      const bacsiName = await fetchDoctorName(kham.bacsi_id);
+
+      // Combine the data into a payload
+      const payload: ToaThuocPayload = {
+        tenBenhNhan: benhnhanName,
+        chanDoan: kham.chan_doan,
+        ngayKham: kham.ngay_kham,
+        tenBacSi: bacsiName,
+        danhSachThuoc: toa.map((item: any) => {
+          const tenThuocObj = danhSachThuoc.find(
+            (t: any) => t.id === item.thuoc_id
+          );
+          return {
+            ...item,
+            ten_thuoc: tenThuocObj?.ten_thuoc || "Không rõ",
+          };
+        }),
+      };
+
+      setToaThuoc(payload);
+
+      // Open print window
+      const printWindow = window.open("", "_blank", "width=800,height=600");
+      if (!printWindow) {
+        alert("Không thể mở cửa sổ in. Vui lòng tắt chặn popup.");
+        setLoading(false);
+        return;
+      }
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>In Toa Thuốc</title>
+            <style>
+              @page { size: A5; margin: 15mm; }
+              body { font-family: Arial, sans-serif; padding: 0; margin: 0; }
+              h1, h2, h3, p { margin: 0 0 8px; }
+              .container { padding: 10px; }
+              .header { text-align: center; margin-bottom: 20px; }
+              .thuoc-list { margin-top: 15px; }
+              .thuoc-item { margin-bottom: 6px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>🧾 TOA THUỐC</h1>
+              </div>
+              <p><strong>Bệnh nhân:</strong> ${payload.tenBenhNhan}</p>
+              <p><strong>Chẩn đoán:</strong> ${payload.chanDoan}</p>
+              <p><strong>Ngày khám:</strong> ${new Date(
+                payload.ngayKham
+              ).toLocaleDateString()}</p>
+              <p><strong>Bác sĩ:</strong> ${payload.tenBacSi}</p>
+              <h3>💊 Danh sách thuốc:</h3>
+              <div class="thuoc-list">
+                ${
+                  payload.danhSachThuoc.length > 0
+                    ? payload.danhSachThuoc
+                        .map(
+                          (thuoc) => ` 
+                          <div class="thuoc-item">
+                            • <strong>${thuoc.ten_thuoc}</strong>: ${thuoc.so_lan_dung} lần/ngày,
+                            mỗi lần ${thuoc.so_luong_moi_lan} viên ➜ Tổng: ${thuoc.tong_so_luong} viên
+                          </div>`
+                        )
+                        .join("")
+                    : `<div>Không có thuốc trong toa.</div>`
+                }
+              </div>
+            </div>
+          </body>
+        </html>
+      `);
+
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.onload = () => {
+        printWindow.print();
+        printWindow.close();
+      };
+    } catch (err: any) {
+      alert("Lỗi: " + err.message);
+      console.error("Lỗi khi in toa thuốc:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mt-6">
+      <button
+        onClick={handleClickInToa}
+        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        disabled={loading}
+      >
+        🖨️ In toa thuốc
+      </button>
+
+      {loading && <p className="mt-4">Đang tải và chuẩn bị in...</p>}
+
+      {toaThuoc && (
+        <div className="mt-4">
+          <h3 className="font-semibold">Xem nhanh nội dung toa thuốc:</h3>
+          <pre>{JSON.stringify(toaThuoc, null, 2)}</pre>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default InToaThuoc;

@@ -1,0 +1,131 @@
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import {
+  Box,
+  Button,
+  IconButton,
+  Paper,
+  Popper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+  Drawer,
+} from '@mui/material';
+import { Trash2, Plus, Search, Save } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
+import { useToast } from '@/hooks/use-toast';
+
+// --- Feature-Specific Imports & Interfaces ---
+interface Thuoc { /* ... */ }
+interface ToaThuocRow { /* ... */ }
+interface ToaThuocDoctorProps { khambenhID: string; }
+export interface ToaThuocDoctorRef { focus: () => void; }
+
+const ToaThuocDoctorMUI = forwardRef<ToaThuocDoctorRef, ToaThuocDoctorProps>(({ khambenhID }, ref) => {
+  const { toast } = useToast();
+  const idCounter = useRef(1);
+
+  // --- State for Toa Thuoc ---
+  const [toaThuocList, setToaThuocList] = useState<ToaThuocRow[]>([/* initial row */]);
+  const [soNgayToa, setSoNgayToa] = useState<number>(3);
+  const [ngayHen, setNgayHen] = useState<string>('');
+
+  // --- Search & Dropdown State ---
+  const [searchResults, setSearchResults] = useState<Thuoc[]>([]);
+  const [currentSearchRowId, setCurrentSearchRowId] = useState<number | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+
+  // --- Saving & Drawer Toggle State ---
+  const [isSaving, setIsSaving] = useState(false);
+  // Reference to the save button for focus
+  const saveButtonRef = useRef<HTMLButtonElement>(null);
+  // Control Drawer visibility and one-time trigger
+  const [showSaveDrawer, setShowSaveDrawer] = useState(false);
+  const [hasTriggeredDrawer, setHasTriggeredDrawer] = useState(false);
+
+  // Expose focus method for parent
+  useImperativeHandle(ref, () => ({ focus: () => { saveButtonRef.current?.focus(); } }));
+
+  // --- Reset logic when khambenhID changes ---
+  useEffect(() => {
+    setSoNgayToa(0);
+    setNgayHen('');
+    setToaThuocList([/* reset row */]);
+    idCounter.current = 1;
+  }, [khambenhID]);
+
+  // --- Handler: Enter key on Save button triggers Drawer or Save ---
+  const handleKeyOnSave = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!hasTriggeredDrawer) {
+        // First Enter: open Drawer with 'lưu khám'
+        setShowSaveDrawer(true);
+        setHasTriggeredDrawer(true);
+      } else {
+        // Second Enter: save and close Drawer
+        handleSave();
+        setShowSaveDrawer(false);
+      }
+    }
+  };
+
+  // --- Save logic ---
+  const handleSave = async () => {
+    if (!khambenhID) return;
+    setIsSaving(true);
+    // ... API call and data handling ...
+    setIsSaving(false);
+    // Reset for next trigger
+    setHasTriggeredDrawer(false);
+  };
+
+  return (
+    <>
+      {/* --- Main form and table content omitted for brevity --- */}
+
+      {/* --- Action Buttons including Save button with the feature --- */}
+      <Box display="flex" gap={2} sx={{ /* styling */ }}>
+        <Button
+          ref={saveButtonRef}                              // <-- saveButtonRef attached
+          variant="contained"
+          color="success"
+          onClick={handleSave}
+          onKeyDown={handleKeyOnSave}                      // <-- handleKeyOnSave for Enter-navigation
+          disabled={isSaving || !khambenhID}
+          startIcon={isSaving
+            ? <Box sx={{ /* spinner styling */ }} />
+            : <Save size={16}/>
+          }
+        >
+          {isSaving ? 'Đang lưu...' : '💾 Lưu khám'}      // <-- Button label
+        </Button>
+      </Box>
+
+      {/* --- Save Drawer displaying 'lưu khám' vertically --- */}
+      <Drawer
+        anchor="right"
+        open={showSaveDrawer}                             // <-- toggled by Enter on Save button
+        onClose={() => setShowSaveDrawer(false)}
+        ModalProps={{ keepMounted: true }}
+        PaperProps={{ sx:{ width:100, overflow:'visible', display:'flex', justifyContent:'center', alignItems:'center' } }}
+      >
+        <Typography
+          variant="h6"
+          sx={{ transform:'rotate(-90deg)', whiteSpace:'nowrap', letterSpacing:'0.1em' }}
+        >
+          lưu khám                                      // <-- Drawer text
+        </Typography>
+      </Drawer>
+    </>
+  );
+});
+
+ToaThuocDoctorMUI.displayName = 'ToaThuocDoctorMUI';
+export default ToaThuocDoctorMUI;

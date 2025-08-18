@@ -1,0 +1,315 @@
+// KhamBenhDoctor.tsx
+import {
+  useState,
+  useEffect,
+  useRef,
+  useImperativeHandle,
+  forwardRef,
+} from "react";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabaseClient";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import InToaThuoc, { InToaThuocRef } from "./InToaThuoc";
+
+interface KhamBenh {
+  benhnhan_id: string;
+  bacsi_id: string;
+  ngay_kham: string;
+  trieu_chung: string;
+  chan_doan: string;
+  so_ngay_toa: number;
+}
+
+interface KhamBenhDoctorProps {
+  setKhambenhID: React.Dispatch<React.SetStateAction<string | null>>;
+  setKhambenh: React.Dispatch<React.SetStateAction<KhamBenh>>;
+  khambenh: KhamBenh;
+  onSaveComplete?: () => void;
+}
+
+export interface KhamBenhDoctorRef {
+  focusTrieuChung: () => void;
+}
+
+const KhamBenhDoctor = forwardRef<KhamBenhDoctorRef, KhamBenhDoctorProps>(
+  ({ setKhambenhID, setKhambenh, khambenh, onSaveComplete }, ref) => {
+    const [trieuChung, setTrieuChung] = useState(khambenh.trieu_chung || "");
+    const [chanDoan, setChanDoan] = useState(khambenh.chan_doan || "");
+    const [bacsiId, setBacsiId] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+    const [khambenhIDLocal, setKhambenhIDLocal] = useState<string | null>(null);
+
+    const { toast } = useToast();
+
+    const trieuChungRef = useRef<HTMLTextAreaElement>(null);
+    const chanDoanRef = useRef<HTMLTextAreaElement>(null);
+    const saveButtonRef = useRef<HTMLButtonElement>(null);
+    const toaRef = useRef<InToaThuocRef>(null);
+
+    // Cho phép parent reset focus
+    useImperativeHandle(ref, () => ({
+      focusTrieuChung: () => {
+        setTrieuChung("");
+        setChanDoan("");
+        setTimeout(() => {
+          trieuChungRef.current?.focus();
+        }, 100);
+      },
+    }));
+
+    // Sync state khi props khambenh thay đổi (nếu chọn bản ghi mới)
+    useEffect(() => {
+      setTrieuChung(khambenh.trieu_chung || "");
+      setChanDoan(khambenh.chan_doan || "");
+    }, [khambenh.benhnhan_id, khambenh.ngay_kham]);
+
+    // Lấy mã bác sĩ từ Supabase Auth
+    useEffect(() => {
+      const getBacsiId = async () => {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          setBacsiId(user.id);
+          setKhambenh((prev) => ({ ...prev, bacsi_id: user.id }));
+        }
+      };
+      getBacsiId();
+    }, [setKhambenh]);
+
+    // Bắt sự kiện bên ngoài (nếu có)
+    useEffect(() => {
+      const handleLoadKhamBenh = async (event: any) => {
+        const { khambenhId } = event.detail;
+        if (!khambenhId) {
+          setTrieuChung("");
+          setChanDoan("");
+          return;
+        }
+        try {
+          const { data, error } = await supabase
+            .from("khambenh")
+            .select("trieu_chung, chan_doan")
+            .eq("id", khambenhId)
+            .single();
+          if (!error && data) {
+            setTrieuChung(data.trieu_chung || "");
+            setChanDoan(data.chan_doan || "");
+          }
+        } catch (error: any) {
+          console.error("Lỗi load khám bệnh:", error);
+        }
+      };
+
+      const handleResetKhamBenh = () => {
+        setTrieuChung("");
+        setChanDoan("");
+        setKhambenh((prev) => ({
+          ...prev,
+          trieu_chung: "",
+          chan_doan: "",
+          so_ngay_toa: 0,
+        }));
+      };
+
+      const handleLoadVisitData = (event: any) => {
+        const { trieu_chung, chan_doan } = event.detail;
+        setTrieuChung(trieu_chung || "");
+        setChanDoan(chan_doan || "");
+        setKhambenh((prev) => ({
+          ...prev,
+          trieu_chung: trieu_chung || "",
+          chan_doan: chan_doan || "",
+        }));
+      };
+
+      window.addEventListener("loadToaThuoc", handleLoadKhamBenh);
+      window.addEventListener("resetToaThuoc", handleResetKhamBenh);
+      window.addEventListener("loadVisitData", handleLoadVisitData);
+
+      return () => {
+        window.removeEventListener("loadToaThuoc", handleLoadKhamBenh);
+        window.removeEventListener("resetToaThuoc", handleResetKhamBenh);
+        window.removeEventListener("loadVisitData", handleLoadVisitData);
+      };
+    }, [setKhambenh]);
+
+    const handleLuuKhamBenh = async () => {
+      if (!khambenh.benhnhan_id) {
+        toast({
+          title: "Lỗi",
+          description: "Vui lòng chọn bệnh nhân.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!trieuChung.trim() || !chanDoan.trim()) {
+        toast({
+          title: "Lỗi",
+          description: "Vui lòng nhập đầy đủ triệu chứng và chẩn đoán.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("khambenh")
+          .insert([
+            {
+              benhnhan_id: khambenh.benhnhan_id,
+              bacsi_id: bacsiId,
+              ngay_kham: khambenh.ngay_kham,
+              trieu_chung: trieuChung,
+              chan_doan: chanDoan,
+              so_ngay_toa: 0,
+            },
+          ])
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setKhambenhID(data.id);
+        setKhambenh((prev) => ({
+          ...prev,
+          trieu_chung: trieuChung,
+          chan_doan: chanDoan,
+          so_ngay_toa: 0,
+        }));
+        setKhambenhIDLocal(data.id);
+
+        setTrieuChung("");
+        setChanDoan("");
+
+        toast({
+          title: "Thành công!",
+          description: "Đã lưu thông tin khám bệnh.",
+        });
+
+        if (onSaveComplete) {
+          onSaveComplete();
+        }
+
+        // Emit event để update UI phía ngoài nếu cần
+        window.dispatchEvent(
+          new CustomEvent("patientExamDone", {
+            detail: { benhnhan_id: data.benhnhan_id },
+          })
+        );
+      } catch (err: any) {
+        toast({
+          title: "Lỗi",
+          description: "Lỗi khi lưu: " + err.message,
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    const handleKeyDown = (
+      e: React.KeyboardEvent,
+      nextRef?: React.RefObject<any>
+    ) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        if (nextRef?.current) {
+          nextRef.current.focus();
+        }
+      }
+    };
+
+    const handleSaveKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleLuuKhamBenh();
+      }
+    };
+
+    return (
+      // Thẻ cha này có class "relative" để InToaThuoc (con) bám đáy
+      <div className="relative space-y-4 bg-white p-4">
+        {/* ==== Phần SOẠN TOA: Triệu chứng + Chẩn đoán + Nút Lưu ==== */}
+        <div className="flex space-x-4">
+          {/* Triệu chứng */}
+          <div className="flex-1">
+            <fieldset className="border border-gray-300 dark:border-gray-600 rounded-lg">
+              <legend className="px-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800">
+                Triệu chứng
+              </legend>
+              <Textarea
+                ref={trieuChungRef}
+                id="trieu-chung"
+                placeholder="Nhập triệu chứng... (Enter để chuyển sang chẩn đoán)"
+                value={trieuChung}
+                onChange={(e) => setTrieuChung(e.target.value)}
+                onKeyDown={(e) => handleKeyDown(e, chanDoanRef)}
+                className="min-h-[42px] border-none focus:ring-0 bg-transparent resize-y p-3"
+                style={{ height: "auto", minHeight: "42px" }}
+              />
+            </fieldset>
+          </div>
+
+          {/* Chẩn đoán */}
+          <div className="flex-1">
+            <fieldset className="border border-gray-300 dark:border-gray-600 rounded-lg">
+              <legend className="px-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800">
+                Chẩn đoán
+              </legend>
+              <Textarea
+                ref={chanDoanRef}
+                id="chan-doan"
+                placeholder="Nhập chẩn đoán... (Enter để chuyển sang nút lưu)"
+                value={chanDoan}
+                onChange={(e) => setChanDoan(e.target.value)}
+                onKeyDown={(e) => handleKeyDown(e, saveButtonRef)}
+                className="min-h-[42px] border-none focus:ring-0 bg-transparent resize-y p-3"
+                style={{ height: "auto", minHeight: "42px" }}
+              />
+            </fieldset>
+          </div>
+
+          {/* Nút Lưu (vertical) */}
+          <div className="relative">
+            <button
+              ref={saveButtonRef}
+              className={`transition-all duration-300 ease-in-out flex items-center justify-center text-white text-sm font-medium shadow-lg
+                bg-green-500 hover:bg-green-600
+                ${!khambenh.benhnhan_id || isLoading ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
+              `}
+              style={{
+                height: "84px",
+                width: "24px",
+                writingMode: "vertical-rl",
+                textOrientation: "mixed",
+                borderRadius: "4px 0 0 4px",
+              }}
+              onClick={handleLuuKhamBenh}
+              onKeyDown={handleSaveKeyDown}
+              disabled={!khambenh.benhnhan_id || isLoading}
+            >
+              {isLoading ? "..." : "💾"}
+            </button>
+          </div>
+        </div>
+
+        {/* ==== Phần InToaThuoc (con) sẽ bám đáy của thẻ cha relative trên ==== */}
+        <InToaThuoc
+          ref={toaRef}
+          khambenhID={khambenhIDLocal || ""}
+          disabled={!khambenhIDLocal}
+          patientInfo={{
+            ho_ten: "", // Có thể đổ dữ liệu patientInfo nếu cần
+          }}
+        />
+      </div>
+    );
+  }
+);
+
+KhamBenhDoctor.displayName = "KhamBenhDoctor";
+export default KhamBenhDoctor;

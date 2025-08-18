@@ -1,0 +1,162 @@
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  forwardRef,
+  useImperativeHandle
+} from 'react';
+import {
+  Box,
+  Button,
+  IconButton,
+  Paper,
+  Popper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography
+} from '@mui/material';
+import { Trash2, Plus, Save, Search } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
+import { useToast } from '@/hooks/use-toast';
+
+const ToaThuocDoctorMUI = forwardRef(({ khambenhID }, ref) => {
+  const [searchResults, setSearchResults] = useState([]);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const searchDebounceTimer = useRef(null);
+  const { toast } = useToast();
+
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      const input = document.querySelector('input[data-field="search_thuoc"]');
+      if (input) input.focus();
+    }
+  }));
+
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+    if (searchDebounceTimer.current) clearTimeout(searchDebounceTimer.current);
+
+    searchDebounceTimer.current = setTimeout(async () => {
+      try {
+        const { data, error } = await supabase
+          .from('thuoc')
+          .select('id, ten_thuoc, don_vi, duong_dung, gia_ban, so_luong_ton')
+          .ilike('ten_thuoc', `%${searchTerm}%`)
+          .limit(20);
+        if (error) throw error;
+        setSearchResults(data || []);
+        setSelectedIndex(data && data.length > 0 ? 0 : -1);
+        setShowDropdown(true);
+      } catch (error) {
+        toast({
+          title: 'Lỗi tìm thuốc',
+          description: error.message,
+          variant: 'destructive'
+        });
+        setSearchResults([]);
+        setShowDropdown(false);
+      }
+    }, 300);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const items = document.querySelectorAll('.dropdown-item');
+    if (selectedIndex >= 0 && items.length > selectedIndex) {
+      const el = items[selectedIndex];
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [selectedIndex]);
+
+  const handleSelect = (thuoc) => {
+    alert(`Chọn thuốc: ${thuoc.ten_thuoc}`);
+    setShowDropdown(false);
+    setSearchTerm('');
+  };
+
+  return (
+    <Box sx={{ p: 3 }}>
+      <TextField
+        label="Tìm thuốc"
+        fullWidth
+        value={searchTerm}
+        onChange={(e) => {
+          setSearchTerm(e.target.value);
+          setAnchorEl(e.currentTarget);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setSelectedIndex((i) => Math.min(i + 1, searchResults.length - 1));
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setSelectedIndex((i) => Math.max(i - 1, 0));
+          } else if (e.key === 'Enter') {
+            if (selectedIndex >= 0 && selectedIndex < searchResults.length) {
+              handleSelect(searchResults[selectedIndex]);
+            }
+          } else if (e.key === 'Escape') {
+            setShowDropdown(false);
+          }
+        }}
+        InputProps={{
+          startAdornment: <Search size={16} style={{ marginRight: 8 }} />,
+          autoComplete: 'off'
+        }}
+        inputProps={{
+          'data-field': 'search_thuoc'
+        }}
+      />
+
+      <Popper
+        open={showDropdown && searchResults.length > 0 && Boolean(anchorEl)}
+        anchorEl={anchorEl}
+        placement="bottom-start"
+        style={{ zIndex: 1300 }}
+      >
+        <Paper sx={{ maxHeight: 300, overflowY: 'auto', minWidth: 300 }}>
+          {searchResults.map((thuoc, idx) => (
+            <Box
+              key={thuoc.id}
+              className="dropdown-item"
+              sx={{
+                p: 1.5,
+                cursor: 'pointer',
+                bgcolor: idx === selectedIndex ? 'action.selected' : 'transparent',
+                '&:hover': { bgcolor: 'action.hover' },
+                borderBottom: '1px solid #eee'
+              }}
+              onMouseEnter={() => setSelectedIndex(idx)}
+              onClick={() => handleSelect(thuoc)}
+            >
+              <Typography fontWeight="bold" color="primary">
+                {thuoc.ten_thuoc}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {thuoc.duong_dung} - {thuoc.don_vi}
+              </Typography>
+              <Typography variant="caption" color="success.main">
+                Tồn kho: {thuoc.so_luong_ton} | Giá: {thuoc.gia_ban?.toLocaleString('vi-VN')} VNĐ
+              </Typography>
+            </Box>
+          ))}
+        </Paper>
+      </Popper>
+    </Box>
+  );
+});
+
+ToaThuocDoctorMUI.displayName = 'ToaThuocDoctorMUI';
+
+export default ToaThuocDoctorMUI;

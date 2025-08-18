@@ -1,0 +1,173 @@
+// 📁 ThongKe1Dialog.tsx
+import { useEffect, useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TableHeader, TableRow, TableCell, TableBody } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/lib/supabaseClient";
+import { useNavigate } from "react-router-dom";
+
+interface RecordItem {
+  khambenh_id: string;
+  ten_benhnhan: string;
+  ngaytoa: string;
+  chan_doan: string;
+}
+
+export default function ThongKe1Dialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [thuocName, setThuocName] = useState("");
+  const [data, setData] = useState<RecordItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const navigate = useNavigate();
+
+  const handleSearch = async () => {
+    setLoading(true);
+    setErrorMsg("");
+    setData([]);
+
+    const { data: thuocData, error: thuocError } = await supabase
+      .from("thuoc")
+      .select("id")
+      .ilike("ten_thuoc", `%${thuocName}%`)
+      .limit(1);
+
+    if (thuocError || !thuocData || thuocData.length === 0) {
+      setErrorMsg("Không tìm thấy thuốc.");
+      setLoading(false);
+      return;
+    }
+
+    const thuocId = thuocData[0].id;
+
+    const { data: records, error: statError } = await supabase
+      .from("v_toaduocsi")
+      .select("khambenh_id, ten_benhnhan, ngaytoa, chan_doan")
+      .eq("thuoc_id", thuocId);
+
+    if (statError) {
+      setErrorMsg("Lỗi khi truy vấn dữ liệu.");
+      setLoading(false);
+      return;
+    }
+
+    setData(records || []);
+    setLoading(false);
+  };
+
+  const handleSelectVisit = (visitId: string) => {
+    onClose();
+    navigate("/visit-form", { state: { visitId } });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Thống kê lịch sử theo tên thuốc</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex items-center gap-2">
+          <Input
+            placeholder="Nhập tên thuốc (ví dụ: Paracetamol)"
+            value={thuocName}
+            onChange={(e) => setThuocName(e.target.value)}
+            className="w-full"
+          />
+          <Button onClick={handleSearch} disabled={loading || !thuocName}>
+            {loading ? "Đang tìm..." : "Tra cứu"}
+          </Button>
+        </div>
+
+        {errorMsg && <p className="text-red-500 mt-2">{errorMsg}</p>}
+
+        {data.length > 0 && (
+          <div className="mt-4 max-h-96 overflow-y-auto border rounded-md">
+            <Table>
+              <TableHeader className="sticky top-0 bg-white dark:bg-gray-800 z-10">
+                <TableRow>
+                  <TableCell className="font-semibold w-12">STT</TableCell>
+                  <TableCell className="font-semibold w-20">Mã KB</TableCell>
+                  <TableCell className="font-semibold">Tên bệnh nhân</TableCell>
+                  <TableCell className="font-semibold">Chẩn đoán</TableCell>
+                  <TableCell className="font-semibold w-24">Ngày toa</TableCell>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.map((item, idx) => (
+                  <TableRow key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <TableCell className="text-center text-sm text-gray-500">{idx + 1}</TableCell>
+                    <TableCell
+                      className="font-mono text-xs text-blue-600 cursor-pointer hover:underline"
+                      onClick={() => handleSelectVisit(item.khambenh_id)}
+                    >
+                      {item.khambenh_id?.substring(0, 6)}...
+                    </TableCell>
+                    <TableCell>{item.ten_benhnhan}</TableCell>
+                    <TableCell className="text-sm">{item.chan_doan || 'Chưa có'}</TableCell>
+                    <TableCell className="text-sm">{item.ngaytoa}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// 📁 VisitForm.tsx
+import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { supabase } from "@/lib/supabaseClient";
+
+export default function VisitForm() {
+  const location = useLocation();
+  const visitId = location.state?.visitId;
+
+  const [visitData, setVisitData] = useState<any>(null);
+  const [prescriptions, setPrescriptions] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (visitId) {
+      loadVisitData(visitId);
+    }
+  }, [visitId]);
+
+  const loadVisitData = async (id: string) => {
+    const { data: visit, error: visitError } = await supabase
+      .from("khambenh")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    const { data: toa, error: toaError } = await supabase
+      .from("toa_thuoc")
+      .select("*")
+      .eq("khambenh_id", id);
+
+    setVisitData(visit);
+    setPrescriptions(toa || []);
+  };
+
+  return (
+    <div className="p-4">
+      {visitData ? (
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Khám bệnh: {visitData.ten_benhnhan}</h2>
+          <p>Ngày khám: {visitData.ngay_kham}</p>
+          <p>Chẩn đoán: {visitData.chan_doan}</p>
+          <h3 className="mt-4 font-semibold">Toa thuốc:</h3>
+          <ul className="list-disc ml-6">
+            {prescriptions.map((thuoc, idx) => (
+              <li key={idx}>{thuoc.ten_thuoc} - {thuoc.lieuluong}</li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p>Không có dữ liệu khám bệnh.</p>
+      )}
+    </div>
+  );
+}

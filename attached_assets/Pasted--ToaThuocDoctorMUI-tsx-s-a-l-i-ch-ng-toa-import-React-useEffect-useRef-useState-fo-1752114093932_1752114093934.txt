@@ -1,0 +1,139 @@
+// ✅ ToaThuocDoctorMUI.tsx - Đã sửa lỗi "chồng toa"
+import React, { useEffect, useRef, useState, forwardRef } from 'react';
+import { Box, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography, Paper, IconButton, Popper } from '@mui/material';
+import { Plus, Save, Trash2, Search } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/lib/supabaseClient';
+
+const ToaThuocDoctorMUI = forwardRef(({ khambenhID }, ref) => {
+  const [toaThuocList, setToaThuocList] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [soNgayToa, setSoNgayToa] = useState(7);
+  const [ngayHen, setNgayHen] = useState('');
+  const idCounter = useRef(1);
+
+  useEffect(() => {
+    // Khi đổi bệnh nhân: reset toa
+    setToaThuocList([]);
+    idCounter.current = 1;
+  }, [khambenhID]);
+
+  const handleAddRow = () => {
+    const newRow = {
+      id: idCounter.current++,
+      thuoc_id: '',
+      ten_thuoc: '',
+      don_vi: '',
+      duong_dung: '',
+      so_lan_dung: 0,
+      so_luong_moi_lan: 0,
+      tong_so_luong: 0,
+      manual_tong_so_luong: false,
+      ghi_chu: '',
+      gia_ban: 0,
+      thanh_tien: 0,
+      searchTerm: ''
+    };
+    setToaThuocList(prev => [...prev, newRow]);
+  };
+
+  const handleRemoveRow = (id) => {
+    setToaThuocList(prev => prev.filter(row => row.id !== id));
+  };
+
+  const handleUpdateRow = (id, field, value) => {
+    setToaThuocList(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
+  };
+
+  const handleSave = async () => {
+    if (!khambenhID) {
+      toast({ title: 'Lỗi', description: 'Chưa có khambenhID', variant: 'destructive' });
+      return;
+    }
+
+    const toInsert = toaThuocList.filter(r => r.thuoc_id).map(r => ({
+      khambenh_id: khambenhID,
+      thuoc_id: r.thuoc_id,
+      so_lan_dung: Math.max(1, r.so_lan_dung),
+      so_luong_moi_lan: r.so_luong_moi_lan,
+      tong_so_luong: r.tong_so_luong,
+      ghi_chu: r.ghi_chu || '',
+      thanh_tien: r.thanh_tien
+    }));
+
+    if (!toInsert.length) {
+      toast({ title: 'Chưa có thuốc', description: 'Thêm ít nhất một thuốc.', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      const { error: insertErr } = await supabase.from('toathuoc').insert(toInsert);
+      if (insertErr) throw insertErr;
+
+      // Cập nhật bảng khambenh nếu cần
+      const updateData = {};
+      if (soNgayToa > 0) updateData.so_ngay_toa = soNgayToa;
+      if (ngayHen) updateData.ngay_hen_tai_kham = ngayHen;
+
+      if (Object.keys(updateData).length > 0) {
+        const { error: updateErr } = await supabase.from('khambenh').update(updateData).eq('id', khambenhID);
+        if (updateErr) console.warn('Lỗi cập nhật khambenh:', updateErr);
+      }
+
+      toast({ title: 'Thành công', description: `Đã lưu ${toInsert.length} thuốc.` });
+      setToaThuocList([]);  // Không khởi tạo dòng mới nữa
+      idCounter.current = 1;
+
+      window.dispatchEvent(new CustomEvent('toaThuocUpdated'));
+    } catch (error) {
+      toast({ title: 'Lỗi', description: error.message, variant: 'destructive' });
+    }
+  };
+
+  return (
+    <Box>
+      <Box display="flex" gap={2} mb={2}>
+        <TextField label="Số ngày kê" type="number" value={soNgayToa} onChange={e => setSoNgayToa(+e.target.value)} />
+        <TextField label="Ngày hẹn tái khám" type="date" value={ngayHen} onChange={e => setNgayHen(e.target.value)} InputLabelProps={{ shrink: true }} />
+      </Box>
+
+      <TableContainer component={Paper}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Tên thuốc</TableCell>
+              <TableCell>Số lần</TableCell>
+              <TableCell>SL/lần</TableCell>
+              <TableCell>Ghi chú</TableCell>
+              <TableCell></TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {toaThuocList.map(row => (
+              <TableRow key={row.id}>
+                <TableCell>{row.ten_thuoc || <i>Chưa chọn</i>}</TableCell>
+                <TableCell>{row.so_lan_dung}</TableCell>
+                <TableCell>{row.so_luong_moi_lan}</TableCell>
+                <TableCell>{row.ghi_chu}</TableCell>
+                <TableCell>
+                  <IconButton onClick={() => handleRemoveRow(row.id)}><Trash2 size={16} /></IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <Box mt={2} display="flex" gap={2}>
+        <Button variant="outlined" onClick={handleAddRow} startIcon={<Plus size={16} />}>Thêm dòng</Button>
+        <Button variant="contained" color="success" onClick={handleSave} startIcon={<Save size={16} />}>Lưu toa</Button>
+      </Box>
+    </Box>
+  );
+});
+
+ToaThuocDoctorMUI.displayName = 'ToaThuocDoctorMUI';
+export default ToaThuocDoctorMUI;

@@ -1,0 +1,338 @@
+import React, { useEffect, useState, useRef } from "react";
+import { DataGrid, GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
+import {
+  Box,
+  TextField,
+  Button,
+  Typography,
+  CircularProgress,
+  Autocomplete,
+} from "@mui/material";
+import { supabase } from "./supabaseClient";
+import { Thuoc } from "./utils/thuocHelper";
+
+interface Props {
+  khambenhID: string;
+  onFinish?: () => void;
+  onPrint?: () => void;
+}
+
+interface ToaThuocRow {
+  id: number;
+  thuoc_id: string;
+  ten_thuoc: string;
+  don_vi: string;
+  duong_dung: string;
+  so_lan_dung: number;
+  so_luong_moi_lan: number;
+  tong_so_luong: number;
+  ghi_chu: string;
+}
+
+const ToaThuocDoctorDataGrid: React.FC<Props> = ({
+  khambenhID,
+  onFinish,
+  onPrint,
+}) => {
+  const [thuocList, setThuocList] = useState<Thuoc[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const [toaThuocList, setToaThuocList] = useState<ToaThuocRow[]>([
+    {
+      id: 0,
+      thuoc_id: "",
+      ten_thuoc: "",
+      don_vi: "",
+      duong_dung: "",
+      so_lan_dung: 1,
+      so_luong_moi_lan: 1,
+      tong_so_luong: 1, // mặc định 1 ngày * 1 lần * 1 lượng
+      ghi_chu: "",
+    },
+  ]);
+
+  const [soNgayToa, setSoNgayToa] = useState<number>(3);
+  const idCounter = useRef(1);
+  const [inputValues, setInputValues] = useState<Record<number, string>>({});
+
+  // debounce tìm thuốc
+  const searchThuoc = useRef<(term: string) => Promise<void>>();
+  useEffect(() => {
+    let timer: any;
+    searchThuoc.current = async (term: string) => {
+      if (!term.trim()) {
+        setThuocList([]);
+        return;
+      }
+      setLoading(true);
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        const { data, error } = await supabase
+          .from("thuoc")
+          .select("id, ten_thuoc, don_vi, duong_dung, gia_ban, so_luong_ton")
+          .ilike("ten_thuoc", `%${term.trim()}%`)
+          .limit(20);
+
+        if (error) {
+          alert("Lỗi lấy thuốc: " + error.message);
+          setThuocList([]);
+        } else {
+          setThuocList(data || []);
+        }
+        setLoading(false);
+      }, 300);
+    };
+  }, []);
+
+  const handleUpdateRow = (id: number, field: string, value: any) => {
+    setToaThuocList((prev) => {
+      const updatedRows = prev.map((row) => {
+        if (row.id !== id) return row;
+        let updatedRow = { ...row, [field]: value };
+
+        if (field === "thuoc_id") {
+          const selected = thuocList.find((t) => t.id === value);
+          if (selected) {
+            updatedRow.ten_thuoc = selected.ten_thuoc;
+            updatedRow.don_vi = selected.don_vi;
+            updatedRow.duong_dung = selected.duong_dung;
+          } else {
+            updatedRow.ten_thuoc = "";
+            updatedRow.don_vi = "";
+            updatedRow.duong_dung = "";
+          }
+        }
+
+        if (field === "so_lan_dung" || field === "so_luong_moi_lan") {
+          const sl1 = field === "so_lan_dung" ? value : row.so_lan_dung;
+          const sl2 =
+            field === "so_luong_moi_lan" ? value : row.so_luong_moi_lan;
+          updatedRow.tong_so_luong = soNgayToa * sl1 * sl2;
+        }
+
+        return updatedRow;
+      });
+
+      // Nếu vừa chọn thuốc ở dòng cuối cùng mà dòng đó không rỗng, tự động thêm dòng mới
+      const lastRow = updatedRows[updatedRows.length - 1];
+      if (
+        lastRow.thuoc_id !== "" &&
+        updatedRows.filter((r) => r.thuoc_id === "").length === 0
+      ) {
+        updatedRows.push({
+          id: idCounter.current++,
+          thuoc_id: "",
+          ten_thuoc: "",
+          don_vi: "",
+          duong_dung: "",
+          so_lan_dung: 1,
+          so_luong_moi_lan: 1,
+          tong_so_luong: soNgayToa * 1 * 1,
+          ghi_chu: "",
+        });
+      }
+
+      return updatedRows;
+    });
+  };
+
+  const handleSave = async () => {
+    const dataToInsert = toaThuocList
+      .filter((row) => row.thuoc_id !== "")
+      .map((row) => ({
+        khambenh_id: khambenhID,
+        thuoc_id: row.thuoc_id,
+        so_lan_dung: row.so_lan_dung,
+        so_luong_moi_lan: row.so_luong_moi_lan,
+        tong_so_luong: row.tong_so_luong,
+        ghi_chu: row.ghi_chu,
+      }));
+
+    if (dataToInsert.length === 0) {
+      alert("Chưa có thuốc nào để lưu.");
+      return;
+    }
+
+    const { error } = await supabase.from("toathuoc").insert(dataToInsert);
+    if (error) alert("Lỗi khi lưu toa thuốc: " + error.message);
+    else {
+      alert("Đã lưu thành công!");
+      onFinish?.();
+      setToaThuocList([
+        {
+          id: 0,
+          thuoc_id: "",
+          ten_thuoc: "",
+          don_vi: "",
+          duong_dung: "",
+          so_lan_dung: 1,
+          so_luong_moi_lan: 1,
+          tong_so_luong: 1,
+          ghi_chu: "",
+        },
+      ]);
+    }
+  };
+
+  // Cột
+  const columns: GridColDef[] = [
+    {
+      field: "ten_thuoc",
+      headerName: "Tên thuốc",
+      flex: 1,
+      renderCell: (params: GridRenderCellParams<ToaThuocRow>) => {
+        const row = params.row;
+        const id = row.id;
+        const currentThuocId = row.thuoc_id;
+
+        const inputValue = inputValues[id] || "";
+
+        return (
+          <Autocomplete
+            size="small"
+            fullWidth
+            options={thuocList}
+            getOptionLabel={(option) => option.ten_thuoc || ""}
+            loading={loading}
+            value={thuocList.find((t) => t.id === currentThuocId) || null}
+            onChange={(_e, newValue) => {
+              if (newValue) {
+                handleUpdateRow(id, "thuoc_id", newValue.id);
+              } else {
+                handleUpdateRow(id, "thuoc_id", "");
+              }
+              setInputValues((prev) => ({ ...prev, [id]: "" }));
+            }}
+            onInputChange={(_e, newInputValue, reason) => {
+              if (reason === "input") {
+                setInputValues((prev) => ({ ...prev, [id]: newInputValue }));
+                searchThuoc.current?.(newInputValue);
+              }
+            }}
+            renderOption={(props, option) => (
+              <li {...props} key={option.id}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    width: "100%",
+                    gap: 1,
+                  }}
+                >
+                  <span>{option.ten_thuoc}</span>
+                  <span style={{ color: "gray" }}>
+                    Tồn kho: {option.so_luong_ton} | Đơn vị: {option.don_vi}
+                  </span>
+                </Box>
+              </li>
+            )}
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                placeholder="Gõ tên thuốc..."
+                InputProps={{
+                  ...params.InputProps,
+                  endAdornment: (
+                    <>
+                      {loading ? (
+                        <CircularProgress color="inherit" size={16} />
+                      ) : null}
+                      {params.InputProps.endAdornment}
+                    </>
+                  ),
+                }}
+              />
+            )}
+          />
+        );
+      },
+    },
+    { field: "don_vi", headerName: "Đơn vị", width: 100 },
+    {
+      field: "so_lan_dung",
+      headerName: "Số lần/ngày",
+      width: 120,
+      renderCell: (params: GridRenderCellParams<ToaThuocRow>) => (
+        <TextField
+          type="number"
+          size="small"
+          value={params.row.so_lan_dung}
+          onChange={(e) =>
+            handleUpdateRow(params.row.id, "so_lan_dung", +e.target.value)
+          }
+          inputProps={{ min: 1 }}
+        />
+      ),
+    },
+    {
+      field: "so_luong_moi_lan",
+      headerName: "SL mỗi lần",
+      width: 120,
+      renderCell: (params: GridRenderCellParams<ToaThuocRow>) => (
+        <TextField
+          type="number"
+          size="small"
+          value={params.row.so_luong_moi_lan}
+          onChange={(e) =>
+            handleUpdateRow(params.row.id, "so_luong_moi_lan", +e.target.value)
+          }
+          inputProps={{ min: 1 }}
+        />
+      ),
+    },
+    { field: "duong_dung", headerName: "Dạng dùng", width: 130 },
+    { field: "tong_so_luong", headerName: "Tổng số lượng", width: 130 },
+    {
+      field: "ghi_chu",
+      headerName: "Ghi chú",
+      flex: 1.2,
+      renderCell: (params: GridRenderCellParams<ToaThuocRow>) => (
+        <TextField
+          size="small"
+          value={params.row.ghi_chu}
+          onChange={(e) =>
+            handleUpdateRow(params.row.id, "ghi_chu", e.target.value)
+          }
+        />
+      ),
+    },
+  ];
+
+  return (
+    <Box>
+      <Box mb={2} display="flex" alignItems="center" gap={2}>
+        <Typography>Số ngày kê toa:</Typography>
+        <TextField
+          type="number"
+          value={soNgayToa}
+          onChange={(e) =>
+            setSoNgayToa(Math.max(1, Math.min(30, +e.target.value)))
+          }
+          inputProps={{ min: 1, max: 30 }}
+          size="small"
+          sx={{ width: 100 }}
+        />
+      </Box>
+
+      <DataGrid
+        autoHeight
+        rows={toaThuocList}
+        columns={columns}
+        pageSizeOptions={[5, 10]}
+        hideFooterPagination
+        getRowId={(row) => row.id}
+      />
+
+      <Box mt={2} display="flex" gap={2}>
+        <Button variant="contained" color="success" onClick={handleSave}>
+          💾 Lưu toa thuốc
+        </Button>
+        <Button variant="contained" color="secondary" onClick={onPrint}>
+          🖨️ In toa
+        </Button>
+      </Box>
+    </Box>
+  );
+};
+
+export default ToaThuocDoctorDataGrid;
