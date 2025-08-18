@@ -16,6 +16,7 @@ Recent updates (August 17, 2025):
 
 Preferred communication style: Simple, everyday language.
 Repository management: Lightweight repo structure, optimized for GitHub deployment.
+Framework preference: Vite + Vue preferred over Next.js for faster builds, smaller bundle sizes, and quicker deployment (Next.js builds 40s vs Vite 3-5s, Next.js 209MB vs Vite ~20MB).
 
 ## System Architecture
 
