@@ -16,16 +16,16 @@ Recent updates (August 17, 2025):
 
 Preferred communication style: Simple, everyday language.
 Repository management: Lightweight repo structure, optimized for GitHub deployment.
-Framework preference: Vite + Vue preferred over Next.js for faster builds, smaller bundle sizes, and quicker deployment (Next.js builds 40s vs Vite 3-5s, Next.js 209MB vs Vite ~20MB).
+Framework preference: User wants to restore the original React components. The system was previously built with React + Material-UI and needs to be restored to that architecture.
 
 ## System Architecture
 
 ### Frontend Architecture
-- **Framework**: Next.js 14 with TypeScript for type safety and modern React features
+- **Framework**: React with Vite for fast development and TypeScript for type safety
 - **UI Components**: Combination of Material-UI (@mui/material) and shadcn/ui components for consistent design
 - **Styling**: Tailwind CSS with custom CSS variables for theming support
-- **State Management**: React hooks and local component state for data management
-- **Navigation**: Role-based routing with conditional component rendering
+- **State Management**: React hooks and TanStack Query for data management
+- **Navigation**: React Router with role-based routing and conditional component rendering
 
 ### Authentication & Authorization
 - **Provider**: Supabase Authentication with session management
